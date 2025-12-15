@@ -39,3 +39,6 @@ export type {
 
 // All types
 export * from './types/index.js';
+
+// Accessibility
+export * from './accessibility/index.js';
