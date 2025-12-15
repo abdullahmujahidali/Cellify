@@ -1,6 +1,6 @@
 # ADR-005: CSV Import/Export Implementation
 
-**Date:** 2024-12-15
+**Date:** 2025-12-15
 **Status:** Accepted
 
 ## Context

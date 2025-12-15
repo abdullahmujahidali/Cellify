@@ -533,6 +533,17 @@ describe('CSV Import', () => {
       expect(sheet.cell('B1').value).toBe(null);
       expect(sheet.cell('C1').value).toBe('C');
     });
+
+    it('should handle escaped quotes in delimiter detection', () => {
+      // CSV with escaped quotes (doubled quotes) in the first line
+      const csv = '"Say ""Hello""",B,C\n1,2,3';
+      const workbook = csvToWorkbook(csv);
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('Say "Hello"');
+      expect(sheet.cell('B1').value).toBe('B');
+      expect(sheet.cell('C1').value).toBe('C');
+    });
   });
 
   describe('csvToSheet', () => {

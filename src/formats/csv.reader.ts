@@ -141,8 +141,14 @@ function detectDelimiter(csv: string): string {
     let count = 0;
     let inQuotes = false;
 
-    for (const char of firstLine) {
-      if (char === '"') {
+    for (let i = 0; i < firstLine.length; i++) {
+      const char = firstLine[i];
+      const nextChar = firstLine[i + 1];
+
+      if (char === '"' && inQuotes && nextChar === '"') {
+        i++;
+        continue;
+      } else if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === delim && !inQuotes) {
         count++;
@@ -391,7 +397,7 @@ function parseDateFormat(value: string, format: string): Date | null {
     }
   }
 
-  if (year && month >= 0 && day) {
+  if (year > 0 && month >= 0 && day > 0) {
     const date = new Date(year, month, day);
     // Validate the date is real
     if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {

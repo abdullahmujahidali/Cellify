@@ -31,12 +31,6 @@ export interface CsvExportOptions {
   quoteAllFields?: boolean;
 
   /**
-   * Include header row (first row of data)
-   * @default true
-   */
-  includeHeaders?: boolean;
-
-  /**
    * Range to export (e.g., 'A1:D10'). If not specified, exports used range.
    */
   range?: string;
@@ -181,7 +175,6 @@ export const DEFAULT_CSV_EXPORT_OPTIONS: Required<Omit<CsvExportOptions, 'range'
   rowDelimiter: '\r\n',
   quoteChar: '"',
   quoteAllFields: false,
-  includeHeaders: true,
   nullValue: '',
   dateFormat: 'ISO',
   includeBom: false,
