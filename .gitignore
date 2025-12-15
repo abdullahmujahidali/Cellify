@@ -4,8 +4,7 @@ node_modules/
 # Build output
 dist/
 
-# Claude Code instructions (local only)
-docs/CLAUDE.md
+not-to-commit/
 
 # IDE
 .idea/
