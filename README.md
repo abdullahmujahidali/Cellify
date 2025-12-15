@@ -1,3 +1,13 @@
-So my idea is to build a custom package library like excel.js, google sheet, microsoft excel...
+# Cellify
 
-my purpose is to solve the problem of where user wants to pay so much to use a product.... this will include row span col span.. mergin... import expert.... coloring, cell formula, cell validation...expanding header will expand the cells etc...# Cellify
+A lightweight, affordable spreadsheet library for building Excel-like experiences.
+
+## Features (Planned)
+
+- Row span and column span
+- Cell merging
+- Import/export (Excel, CSV)
+- Cell styling and coloring
+- Cell formulas
+- Cell validation
+- Expanding headers
