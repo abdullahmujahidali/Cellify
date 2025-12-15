@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { unzipSync } from 'fflate';
 import type { Unzipped } from 'fflate';
 import { Workbook } from '../src/core/Workbook.js';
-import { workbookToXlsx } from '../src/formats/xlsx/index.js';
+import { workbookToXlsx, xlsxToWorkbook } from '../src/formats/xlsx/index.js';
 
 /**
  * Cache for unzipped files to avoid repeated decompression
@@ -967,5 +967,488 @@ describe('XLSX Writer Edge Cases', () => {
     // Should be exported as #NUM! errors
     expect(sheetXml).toContain('t="e"');
     expect(sheetXml).toContain('#NUM!');
+  });
+});
+
+describe('XLSX Import', () => {
+  describe('Basic Import', () => {
+    it('should import empty workbook', () => {
+      const wb = new Workbook();
+      wb.addSheet('Sheet1');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      expect(workbook.sheetCount).toBe(1);
+      expect(workbook.sheets[0].name).toBe('Sheet1');
+      expect(stats.sheetCount).toBe(1);
+    });
+
+    it('should import string values', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Hello';
+      sheet.cell('B1').value = 'World';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe('Hello');
+      expect(imported?.cell('B1').value).toBe('World');
+      expect(stats.totalCells).toBe(2);
+    });
+
+    it('should import number values', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 42;
+      sheet.cell('B1').value = 3.14159;
+      sheet.cell('C1').value = -100;
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe(42);
+      expect(imported?.cell('B1').value).toBeCloseTo(3.14159);
+      expect(imported?.cell('C1').value).toBe(-100);
+    });
+
+    it('should import boolean values', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = true;
+      sheet.cell('B1').value = false;
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe(true);
+      expect(imported?.cell('B1').value).toBe(false);
+    });
+
+    it('should import date values', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      const testDate = new Date('2024-01-15T00:00:00.000Z');
+      sheet.cell('A1').value = testDate;
+      sheet.cell('A1').style = { numberFormat: { formatCode: 'yyyy-mm-dd' } };
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      const value = imported?.cell('A1').value;
+      expect(value).toBeInstanceOf(Date);
+      if (value instanceof Date) {
+        expect(value.toISOString().split('T')[0]).toBe('2024-01-15');
+      }
+    });
+  });
+
+  describe('Multiple Sheets', () => {
+    it('should import multiple sheets', () => {
+      const wb = new Workbook();
+      wb.addSheet('Sheet1').cell('A1').value = 'First';
+      wb.addSheet('Sheet2').cell('A1').value = 'Second';
+      wb.addSheet('Sheet3').cell('A1').value = 'Third';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      expect(workbook.sheetCount).toBe(3);
+      expect(stats.sheetCount).toBe(3);
+      expect(workbook.getSheet('Sheet1')?.cell('A1').value).toBe('First');
+      expect(workbook.getSheet('Sheet2')?.cell('A1').value).toBe('Second');
+      expect(workbook.getSheet('Sheet3')?.cell('A1').value).toBe('Third');
+    });
+
+    it('should import specific sheets by name', () => {
+      const wb = new Workbook();
+      wb.addSheet('Sheet1').cell('A1').value = 'First';
+      wb.addSheet('Sheet2').cell('A1').value = 'Second';
+      wb.addSheet('Sheet3').cell('A1').value = 'Third';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { sheets: ['Sheet2'] });
+
+      expect(workbook.sheetCount).toBe(1);
+      expect(stats.sheetCount).toBe(1);
+      expect(workbook.getSheet('Sheet2')?.cell('A1').value).toBe('Second');
+    });
+
+    it('should import specific sheets by index', () => {
+      const wb = new Workbook();
+      wb.addSheet('Sheet1').cell('A1').value = 'First';
+      wb.addSheet('Sheet2').cell('A1').value = 'Second';
+      wb.addSheet('Sheet3').cell('A1').value = 'Third';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { sheets: [0, 2] });
+
+      expect(workbook.sheetCount).toBe(2);
+      expect(stats.sheetCount).toBe(2);
+      expect(workbook.sheets[0].cell('A1').value).toBe('First');
+      expect(workbook.sheets[1].cell('A1').value).toBe('Third');
+    });
+  });
+
+  describe('Formulas', () => {
+    it('should import formulas', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 10;
+      sheet.cell('A2').value = 20;
+      sheet.cell('A3').setFormula('SUM(A1:A2)');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A3').formula?.formula).toBe('SUM(A1:A2)');
+      expect(stats.formulaCells).toBe(1);
+    });
+
+    it('should respect importFormulas option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').setFormula('1+1');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { importFormulas: false });
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').formula).toBeUndefined();
+      expect(stats.formulaCells).toBe(0);
+    });
+  });
+
+  describe('Styles', () => {
+    it('should import bold font', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Bold';
+      sheet.cell('A1').style = { font: { bold: true } };
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').style?.font?.bold).toBe(true);
+    });
+
+    it('should import italic font', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Italic';
+      sheet.cell('A1').style = { font: { italic: true } };
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').style?.font?.italic).toBe(true);
+    });
+
+    it('should import background color', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Colored';
+      sheet.cell('A1').style = {
+        fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FF0000' },
+      };
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').style?.fill?.foregroundColor).toBe('#FF0000');
+    });
+
+    it('should respect importStyles option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Styled';
+      sheet.cell('A1').style = { font: { bold: true } };
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx, { importStyles: false });
+
+      const imported = workbook.getSheet('Test');
+      // Value should be there, but style should be empty/undefined
+      expect(imported?.cell('A1').value).toBe('Styled');
+    });
+  });
+
+  describe('Merged Cells', () => {
+    it('should import merged cells', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Merged';
+      sheet.mergeCells('A1:C3');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe('Merged');
+      expect(imported?.cell('A1').isMergeMaster).toBe(true);
+      expect(imported?.cell('B2').isMergedSlave).toBe(true);
+      expect(stats.mergedRanges).toBe(1);
+    });
+
+    it('should respect importMergedCells option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Merged';
+      sheet.mergeCells('A1:C3');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { importMergedCells: false });
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').isMergeMaster).toBeFalsy();
+      expect(stats.mergedRanges).toBe(0);
+    });
+  });
+
+  describe('Dimensions', () => {
+    it('should import column widths', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Wide column';
+      sheet.setColumnWidth(0, 20);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      const colConfig = imported?.getColumn(0);
+      // Excel column width conversion adds some offset, allow tolerance
+      expect(colConfig?.width).toBeGreaterThan(19);
+      expect(colConfig?.width).toBeLessThan(22);
+    });
+
+    it('should import row heights', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Tall row';
+      sheet.setRowHeight(0, 30);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      const rowConfig = imported?.getRow(0);
+      expect(rowConfig?.height).toBeCloseTo(30, 0);
+    });
+  });
+
+  describe('Freeze Panes', () => {
+    it('should import frozen rows', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Header';
+      sheet.freeze(1);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.view.frozenRows).toBe(1);
+    });
+
+    it('should import frozen columns', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Label';
+      sheet.freeze(0, 1);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.view.frozenCols).toBe(1);
+    });
+
+    it('should import frozen rows and columns', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 'Corner';
+      sheet.freeze(2, 3);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.view.frozenRows).toBe(2);
+      expect(imported?.view.frozenCols).toBe(3);
+    });
+
+    it('should respect importFreezePanes option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.freeze(1);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx, { importFreezePanes: false });
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.view.frozenRows).toBeUndefined();
+    });
+  });
+
+  describe('Import Statistics', () => {
+    it('should report accurate statistics', () => {
+      const wb = new Workbook();
+      const sheet1 = wb.addSheet('Sheet1');
+      sheet1.cell('A1').value = 'Text';
+      sheet1.cell('A2').value = 42;
+      sheet1.cell('A3').setFormula('A2*2');
+      sheet1.mergeCells('B1:C2');
+
+      const sheet2 = wb.addSheet('Sheet2');
+      sheet2.cell('A1').value = 'More data';
+
+      const xlsx = workbookToXlsx(wb);
+      const { stats } = xlsxToWorkbook(xlsx);
+
+      expect(stats.sheetCount).toBe(2);
+      expect(stats.totalCells).toBe(3); // A1, A2 in Sheet1 (A3 formula has no cached value), A1 in Sheet2
+      expect(stats.formulaCells).toBe(1);
+      expect(stats.mergedRanges).toBe(1);
+      expect(stats.durationMs).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle empty strings', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = '';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe('');
+    });
+
+    it('should handle special characters', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = '<>&"\'';
+      sheet.cell('A2').value = '日本語テスト';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBe('<>&"\'');
+      expect(imported?.cell('A2').value).toBe('日本語テスト');
+    });
+
+    it('should handle large numbers', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      sheet.cell('A1').value = 1234567890123456;
+      sheet.cell('A2').value = 0.000000001;
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell('A1').value).toBeCloseTo(1234567890123456);
+      expect(imported?.cell('A2').value).toBeCloseTo(0.000000001);
+    });
+
+    it('should handle maxRows option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      for (let i = 0; i < 10; i++) {
+        sheet.cell(i, 0).value = `Row ${i}`;
+      }
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { maxRows: 5 });
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell(4, 0).value).toBe('Row 4');
+      expect(imported?.cell(5, 0).value).toBeNull();
+      expect(stats.totalCells).toBe(5);
+    });
+
+    it('should handle maxCols option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Test');
+      for (let i = 0; i < 10; i++) {
+        sheet.cell(0, i).value = `Col ${i}`;
+      }
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx, { maxCols: 5 });
+
+      const imported = workbook.getSheet('Test');
+      expect(imported?.cell(0, 4).value).toBe('Col 4');
+      expect(imported?.cell(0, 5).value).toBeNull();
+      expect(stats.totalCells).toBe(5);
+    });
+  });
+
+  describe('Round Trip', () => {
+    it('should preserve data through export and import', () => {
+      const wb = new Workbook();
+      wb.properties.title = 'Test Workbook';
+      wb.properties.author = 'Test Author';
+
+      const sheet = wb.addSheet('Data');
+      sheet.cell('A1').value = 'Name';
+      sheet.cell('B1').value = 'Value';
+      sheet.cell('A1').style = { font: { bold: true } };
+      sheet.cell('B1').style = { font: { bold: true } };
+      sheet.cell('A2').value = 'Item 1';
+      sheet.cell('B2').value = 100;
+      sheet.cell('A3').value = 'Item 2';
+      sheet.cell('B3').value = 200;
+      sheet.cell('B4').setFormula('SUM(B2:B3)');
+      sheet.mergeCells('A1:B1');
+      sheet.setColumnWidth(0, 15);
+      sheet.setColumnWidth(1, 10);
+      sheet.freeze(1);
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      // Verify structure
+      expect(workbook.sheetCount).toBe(1);
+      expect(stats.sheetCount).toBe(1);
+
+      const imported = workbook.getSheet('Data');
+      expect(imported).toBeDefined();
+
+      // Verify values
+      expect(imported?.cell('A2').value).toBe('Item 1');
+      expect(imported?.cell('B2').value).toBe(100);
+      expect(imported?.cell('A3').value).toBe('Item 2');
+      expect(imported?.cell('B3').value).toBe(200);
+
+      // Verify formula
+      expect(imported?.cell('B4').formula?.formula).toBe('SUM(B2:B3)');
+
+      // Verify styles (bold font)
+      expect(imported?.cell('A1').style?.font?.bold).toBe(true);
+
+      // Verify merged cells
+      expect(imported?.cell('A1').isMergeMaster).toBe(true);
+
+      // Verify freeze pane
+      expect(imported?.view.frozenRows).toBe(1);
+
+      // Verify properties
+      expect(workbook.properties.title).toBe('Test Workbook');
+      expect(workbook.properties.author).toBe('Test Author');
+    });
   });
 });
