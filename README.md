@@ -75,13 +75,42 @@ sheet.freeze(1);
 - [x] Named ranges
 - [x] Sheet protection
 - [x] Accessibility helpers (ARIA attributes, screen reader announcements)
+- [x] CSV import/export with auto-detection
 
 ### Planned
 
 - [ ] Excel (.xlsx) import/export
-- [ ] CSV import/export
 - [ ] Formula evaluation engine
 - [ ] Streaming for large files
+
+## CSV Import/Export
+
+```typescript
+import { Workbook, sheetToCsv, csvToWorkbook } from 'cellify';
+
+// Export to CSV
+const workbook = new Workbook();
+const sheet = workbook.addSheet('Data');
+sheet.cell('A1').value = 'Name';
+sheet.cell('B1').value = 'Age';
+sheet.cell('A2').value = 'Alice';
+sheet.cell('B2').value = 30;
+
+const csv = sheetToCsv(sheet);
+// "Name,Age\r\nAlice,30"
+
+// Import from CSV
+const imported = csvToWorkbook(csv);
+const importedSheet = imported.getSheetByIndex(0);
+console.log(importedSheet.cell('A2').value); // 'Alice'
+```
+
+**Features:**
+
+- Auto-detects delimiter (comma, semicolon, tab, pipe)
+- Handles quoted fields, escaped quotes, multi-line values
+- Detects numbers, booleans, percentages
+- Configurable options (delimiter, encoding, BOM, date formats)
 
 ## Accessibility
 
