@@ -1,6 +1,7 @@
 # Cellify
 
 [![CI](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml/badge.svg)](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/abdullahmujahidali/Cellify/graph/badge.svg)](https://codecov.io/gh/abdullahmujahidali/Cellify)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A lightweight, affordable spreadsheet library for building Excel-like experiences.
