@@ -1,0 +1,3 @@
+So my idea is to build a custom package library like excel.js, google sheet, microsoft excel...
+
+my purpose is to solve the problem of where user wants to pay so much to use a product.... this will include row span col span.. mergin... import expert.... coloring, cell formula, cell validation...expanding header will expand the cells etc...# Cellify
