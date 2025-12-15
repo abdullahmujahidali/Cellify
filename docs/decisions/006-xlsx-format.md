@@ -132,7 +132,7 @@ interface XlsxImportOptions {
 
 ### Future Considerations
 
-- Add streaming support for very large files
+- Add streaming support for large files
 - Support hyperlinks and comments
 - Add data validation import/export
 - Consider conditional formatting export

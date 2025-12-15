@@ -939,9 +939,10 @@
       try {
         let result;
 
-        if (file.name.endsWith('.xlsx')) {
+        const lowerName = file.name.toLowerCase();
+        if (lowerName.endsWith('.xlsx')) {
           result = await xlsxBlobToWorkbook(file);
-        } else if (file.name.endsWith('.csv')) {
+        } else if (lowerName.endsWith('.csv')) {
           const text = await file.text();
           result = { workbook: csvToWorkbook(text), stats: { sheetCount: 1 }, warnings: [] };
         } else {
@@ -1114,10 +1115,8 @@
           const mergeInfo = mergeStarts.get(cellKey);
           let spanAttrs = '';
           if (mergeInfo) {
-            console.log(`Found merge at ${cellKey}: rowSpan=${mergeInfo.rowSpan}, colSpan=${mergeInfo.colSpan}`);
             if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
             if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
-            style += ' background: #ECFDF5; border: 2px solid #10B981;'; // Highlight merged cells with visible border
           }
 
           html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
