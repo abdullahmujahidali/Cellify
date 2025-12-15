@@ -33,7 +33,8 @@
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build && npm run test",
-    "demo": "vite demo"
+    "demo": "vite demo",
+    "demo:build": "vite build --config demo/vite.config.js"
   },
   "keywords": [
     "excel",

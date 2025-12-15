@@ -1,10 +1,19 @@
-# Cellify
+<p align="center">
+  <img src="assets/logo.svg" alt="Cellify Logo" width="80" height="80">
+</p>
 
-[![CI](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml/badge.svg)](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/abdullahmujahidali/Cellify/graph/badge.svg)](https://codecov.io/gh/abdullahmujahidali/Cellify)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<h1 align="center">Cellify</h1>
 
-A lightweight, zero-dependency\* spreadsheet library for JavaScript/TypeScript. Create, read, and manipulate Excel files with ease.
+<p align="center">
+  <a href="https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml"><img src="https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/abdullahmujahidali/Cellify"><img src="https://codecov.io/gh/abdullahmujahidali/Cellify/graph/badge.svg" alt="codecov"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
+  A lightweight, zero-dependency* spreadsheet library for JavaScript/TypeScript.<br>
+  Create, read, and manipulate Excel files with ease.
+</p>
 
 > \*Only dependency is `fflate` for ZIP compression
 
