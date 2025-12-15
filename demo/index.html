@@ -1757,6 +1757,11 @@
         return;
       }
 
+      const preview = document.getElementById('preview');
+      if (!preview || !preview.contains(e.target)) {
+        return;
+      }
+
       // Need a selected cell
       if (selectedRow === null || selectedCol === null) return;
 
