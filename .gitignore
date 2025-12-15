@@ -1,1 +1,29 @@
-docs/
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Claude Code instructions (local only)
+docs/CLAUDE.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
