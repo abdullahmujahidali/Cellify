@@ -65,7 +65,7 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: '/Cellify/demo/',
+          href: 'https://abdullahmujahidali.github.io/Cellify/demo/',
           label: 'Live Demo',
           position: 'left',
         },
@@ -115,7 +115,7 @@ const config: Config = {
           items: [
             {
               label: 'Live Demo',
-              href: '/Cellify/demo/',
+              href: 'https://abdullahmujahidali.github.io/Cellify/demo/',
             },
             {
               label: 'GitHub',
