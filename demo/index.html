@@ -3,262 +3,638 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cellify Demo</title>
+  <title>Cellify - Spreadsheet Library Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary: #059669;
+      --primary-hover: #047857;
+      --primary-light: #D1FAE5;
+      --primary-dark: #065F46;
+      --black: #111827;
+      --gray-900: #1F2937;
+      --gray-700: #374151;
+      --gray-500: #6B7280;
+      --gray-300: #D1D5DB;
+      --gray-200: #E5E7EB;
+      --gray-100: #F3F4F6;
+      --gray-50: #F9FAFB;
+      --white: #FFFFFF;
+      --warning: #F59E0B;
+      --warning-bg: #FEF3C7;
+      --error: #DC2626;
+      --success: #10B981;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    }
+
     * {
       box-sizing: border-box;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--gray-50);
+      color: var(--black);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 20px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-content {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 20px;
-      background: #f5f5f5;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    h1 {
-      color: #2F5496;
-      margin-bottom: 10px;
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
-    .subtitle {
-      color: #666;
-      margin-bottom: 30px;
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-weight: 700;
+      font-size: 18px;
     }
 
+    .logo-text {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--black);
+      letter-spacing: -0.5px;
+    }
+
+    .logo-text span {
+      color: var(--primary);
+    }
+
+    .header-badge {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Main content */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--black);
+      margin: 0 0 12px 0;
+      letter-spacing: -0.5px;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--gray-500);
+      margin: 0;
+    }
+
+    /* Sections */
     .section {
-      background: white;
-      border-radius: 8px;
-      padding: 20px;
+      background: var(--white);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .section-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--primary-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
     }
 
     .section h2 {
-      margin-top: 0;
-      color: #333;
-      border-bottom: 2px solid #2F5496;
-      padding-bottom: 10px;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--black);
+      margin: 0;
     }
 
+    .section-description {
+      color: var(--gray-500);
+      font-size: 14px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .section-description code {
+      background: var(--gray-100);
+      color: var(--primary-dark);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    /* Buttons */
     .button-group {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 15px;
     }
 
     button {
-      background: #2F5496;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
+      font-family: inherit;
       font-size: 14px;
-      transition: background 0.2s;
+      font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    button:hover {
-      background: #1e3a6e;
+    button.primary {
+      background: var(--primary);
+      color: var(--white);
     }
 
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
+    button.primary:hover {
+      background: var(--primary-hover);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
     }
 
     button.secondary {
-      background: #6c757d;
+      background: var(--white);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-300);
     }
 
     button.secondary:hover {
-      background: #545b62;
+      background: var(--gray-50);
+      border-color: var(--gray-400);
     }
 
+    button.outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    button.outline:hover {
+      background: var(--primary-light);
+    }
+
+    button:disabled {
+      background: var(--gray-200);
+      color: var(--gray-500);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Drop zone */
     .drop-zone {
-      border: 2px dashed #ccc;
-      border-radius: 8px;
-      padding: 40px;
+      border: 2px dashed var(--gray-300);
+      border-radius: 16px;
+      padding: 48px 24px;
       text-align: center;
       cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 15px;
+      transition: all 0.2s ease;
+      background: var(--gray-50);
+      margin-bottom: 20px;
     }
 
-    .drop-zone:hover, .drop-zone.dragover {
-      border-color: #2F5496;
-      background: #f0f4ff;
+    .drop-zone:hover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      border-style: solid;
     }
 
     .drop-zone input {
       display: none;
     }
 
-    .drop-zone p {
+    .drop-zone-icon {
+      width: 64px;
+      height: 64px;
+      background: var(--white);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .drop-zone-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--black);
+      margin: 0 0 8px 0;
+    }
+
+    .drop-zone-subtitle {
+      font-size: 14px;
+      color: var(--gray-500);
       margin: 0;
-      color: #666;
     }
 
-    .drop-zone .icon {
-      font-size: 48px;
-      margin-bottom: 10px;
+    .drop-zone-formats {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
     }
 
+    .format-badge {
+      background: var(--white);
+      color: var(--gray-700);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--gray-200);
+    }
+
+    /* Preview area */
     #preview {
       overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
     }
 
     table {
       border-collapse: collapse;
       width: 100%;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     th, td {
-      border: 1px solid #ddd;
-      padding: 8px 12px;
+      border: 1px solid var(--gray-200);
+      padding: 10px 14px;
       text-align: left;
     }
 
     th {
-      background: #2F5496;
-      color: white;
+      background: var(--black);
+      color: var(--white);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
     }
 
-    tr:nth-child(even) {
-      background: #f9f9f9;
+    th:first-child {
+      background: var(--gray-900);
     }
 
-    tr:hover {
-      background: #f0f4ff;
+    tbody tr:nth-child(even) {
+      background: var(--gray-50);
     }
 
+    tbody tr:hover {
+      background: var(--primary-light);
+    }
+
+    tbody td:first-child {
+      background: var(--gray-100);
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    /* Stats */
     .stats {
-      background: #e8f4e8;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 15px;
+      background: var(--primary-light);
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
     }
 
-    .stats p {
-      margin: 5px 0;
+    .stat-item {
+      text-align: center;
     }
 
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-dark);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--gray-700);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Warnings */
     .warnings {
-      background: #fff3cd;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 15px;
+      background: var(--warning-bg);
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border-left: 4px solid var(--warning);
+    }
+
+    .warnings-title {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin: 0 0 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .warnings ul {
-      margin: 5px 0;
+      margin: 0;
       padding-left: 20px;
+      color: var(--gray-700);
     }
 
+    .warnings li {
+      margin: 4px 0;
+    }
+
+    /* Sheet tabs */
     .sheet-tabs {
       display: flex;
-      gap: 5px;
-      margin-bottom: 15px;
+      gap: 4px;
+      margin-bottom: 16px;
       flex-wrap: wrap;
+      background: var(--gray-100);
+      padding: 4px;
+      border-radius: 12px;
     }
 
     .sheet-tab {
-      padding: 8px 16px;
-      background: #e0e0e0;
+      padding: 10px 18px;
+      background: transparent;
       border: none;
-      border-radius: 4px 4px 0 0;
+      border-radius: 8px;
       cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-600);
+      transition: all 0.2s ease;
+    }
+
+    .sheet-tab:hover {
+      background: var(--white);
+      color: var(--black);
     }
 
     .sheet-tab.active {
-      background: #2F5496;
-      color: white;
+      background: var(--white);
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
     }
 
-    .info {
-      background: #e7f3ff;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 15px;
+    /* Console log */
+    .console {
+      background: var(--gray-900);
+      border-radius: 12px;
+      overflow: hidden;
     }
 
-    .info code {
-      background: #d4e9ff;
-      padding: 2px 6px;
-      border-radius: 3px;
+    .console-header {
+      background: var(--black);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .console-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .console-dot.red { background: #EF4444; }
+    .console-dot.yellow { background: #F59E0B; }
+    .console-dot.green { background: #10B981; }
+
+    .console-title {
+      color: var(--gray-400);
+      font-size: 13px;
+      font-weight: 500;
+      margin-left: 8px;
     }
 
     #log {
-      font-family: monospace;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
       font-size: 12px;
-      background: #1e1e1e;
-      color: #d4d4d4;
-      padding: 15px;
-      border-radius: 4px;
+      color: var(--gray-300);
+      padding: 16px;
       max-height: 200px;
       overflow-y: auto;
+      line-height: 1.6;
     }
 
     #log .error {
-      color: #f48771;
+      color: #F87171;
     }
 
     #log .success {
-      color: #89d185;
+      color: #34D399;
     }
 
     #log .info {
-      color: #6cb6ff;
+      color: #60A5FA;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: var(--gray-500);
+      font-size: 14px;
+    }
+
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Preview info */
+    .preview-info {
+      color: var(--gray-500);
+      font-size: 13px;
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--gray-50);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--gray-500);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
     }
   </style>
 </head>
 <body>
-  <h1>Cellify Demo</h1>
-  <p class="subtitle">A lightweight spreadsheet library for JavaScript/TypeScript</p>
-
-  <div class="section">
-    <h2>Export Excel Files</h2>
-    <p class="info">Create and download sample Excel files to test the export functionality.</p>
-
-    <div class="button-group">
-      <button id="btnBasic">Basic Example</button>
-      <button id="btnStyled">Styled Spreadsheet</button>
-      <button id="btnFormula">With Formulas</button>
-      <button id="btnMultiSheet">Multi-Sheet</button>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">C</div>
+        <div class="logo-text">Celli<span>fy</span></div>
+      </div>
+      <div class="header-badge">Interactive Demo</div>
     </div>
-  </div>
+  </header>
 
-  <div class="section">
-    <h2>Import Excel/CSV Files</h2>
-    <p class="info">Drop an <code>.xlsx</code> or <code>.csv</code> file to import and preview its contents.</p>
-
-    <div class="drop-zone" id="dropZone">
-      <div class="icon">📁</div>
-      <p>Drop file here or click to select</p>
-      <p style="font-size: 12px; color: #999; margin-top: 10px;">Supports .xlsx and .csv files</p>
-      <input type="file" id="fileInput" accept=".xlsx,.csv">
+  <div class="container">
+    <!-- Hero -->
+    <div class="hero">
+      <h1>Excel Import & Export Made Simple</h1>
+      <p>A lightweight, zero-dependency spreadsheet library for JavaScript and TypeScript</p>
     </div>
 
-    <div id="importStats" style="display: none;">
-      <div class="stats" id="statsContent"></div>
-      <div class="warnings" id="warningsContent" style="display: none;"></div>
-      <div class="sheet-tabs" id="sheetTabs"></div>
-      <div id="preview"></div>
+    <!-- Export Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📤</div>
+        <h2>Export Excel Files</h2>
+      </div>
+      <p class="section-description">
+        Create and download sample Excel files to test the export functionality.
+        Each example demonstrates different Cellify features.
+      </p>
 
-      <div class="button-group" style="margin-top: 15px;">
-        <button id="btnReExportXlsx">Re-export as XLSX</button>
-        <button id="btnReExportCsv" class="secondary">Export Current Sheet as CSV</button>
+      <div class="button-group">
+        <button class="primary" id="btnBasic">📊 Basic Example</button>
+        <button class="primary" id="btnStyled">🎨 Styled Spreadsheet</button>
+        <button class="primary" id="btnFormula">🔢 With Formulas</button>
+        <button class="primary" id="btnMultiSheet">📑 Multi-Sheet</button>
+      </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📥</div>
+        <h2>Import Excel/CSV Files</h2>
+      </div>
+      <p class="section-description">
+        Drop a file below to import and preview its contents. Supports <code>.xlsx</code> and <code>.csv</code> formats.
+      </p>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-icon">📁</div>
+        <p class="drop-zone-title">Drop your file here</p>
+        <p class="drop-zone-subtitle">or click to browse from your computer</p>
+        <div class="drop-zone-formats">
+          <span class="format-badge">.xlsx</span>
+          <span class="format-badge">.csv</span>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.csv">
+      </div>
+
+      <div id="importStats" style="display: none;">
+        <div class="stats" id="statsContent"></div>
+        <div class="warnings" id="warningsContent" style="display: none;"></div>
+        <div class="sheet-tabs" id="sheetTabs"></div>
+        <div id="preview"></div>
+
+        <div class="button-group" style="margin-top: 20px;">
+          <button class="primary" id="btnReExportXlsx">📤 Re-export as XLSX</button>
+          <button class="secondary" id="btnReExportCsv">📄 Export Current Sheet as CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">💻</div>
+        <h2>Console Output</h2>
+      </div>
+      <div class="console">
+        <div class="console-header">
+          <span class="console-dot red"></span>
+          <span class="console-dot yellow"></span>
+          <span class="console-dot green"></span>
+          <span class="console-title">Activity Log</span>
+        </div>
+        <div id="log"></div>
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <h2>Console Log</h2>
-    <div id="log"></div>
-  </div>
+  <!-- Footer -->
+  <footer class="footer">
+    <p>Built with Cellify — A lightweight spreadsheet library for the modern web</p>
+  </footer>
 
   <script type="module">
     // Import from library
@@ -574,14 +950,41 @@
 
       document.getElementById('importStats').style.display = 'block';
 
-      // Stats
-      const statsHtml = `
-        <p><strong>Sheets:</strong> ${workbook.sheetCount}</p>
-        <p><strong>Total Cells:</strong> ${stats.totalCells || 'N/A'}</p>
-        ${stats.formulaCells ? `<p><strong>Formula Cells:</strong> ${stats.formulaCells}</p>` : ''}
-        ${stats.mergedRanges ? `<p><strong>Merged Ranges:</strong> ${stats.mergedRanges}</p>` : ''}
-        ${stats.durationMs ? `<p><strong>Import Time:</strong> ${stats.durationMs}ms</p>` : ''}
+      // Stats with new card design
+      let statsHtml = `
+        <div class="stat-item">
+          <div class="stat-value">${workbook.sheetCount}</div>
+          <div class="stat-label">Sheets</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${(stats.totalCells || 0).toLocaleString()}</div>
+          <div class="stat-label">Total Cells</div>
+        </div>
       `;
+      if (stats.formulaCells) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.formulaCells.toLocaleString()}</div>
+            <div class="stat-label">Formulas</div>
+          </div>
+        `;
+      }
+      if (stats.mergedRanges) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.mergedRanges}</div>
+            <div class="stat-label">Merged</div>
+          </div>
+        `;
+      }
+      if (stats.durationMs) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.durationMs}ms</div>
+            <div class="stat-label">Import Time</div>
+          </div>
+        `;
+      }
       document.getElementById('statsContent').innerHTML = statsHtml;
 
       // Warnings
@@ -589,7 +992,7 @@
       if (warnings && warnings.length > 0) {
         warningsEl.style.display = 'block';
         warningsEl.innerHTML = `
-          <strong>Warnings:</strong>
+          <p class="warnings-title">⚠️ Warnings</p>
           <ul>${warnings.map(w => `<li>${w.message}</li>`).join('')}</ul>
         `;
       } else {
@@ -631,7 +1034,12 @@
       console.log('Sheet cells size:', sheet.cells?.size || 'N/A');
 
       if (!dims) {
-        document.getElementById('preview').innerHTML = '<p><em>Empty sheet (no dimensions)</em></p>';
+        document.getElementById('preview').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p>This sheet is empty</p>
+          </div>
+        `;
         return;
       }
 
@@ -664,7 +1072,7 @@
           // Show formula indicator
           const formula = cell?.formula;
           const title = formula ? `Formula: =${formula.formula}` : '';
-          const style = formula ? 'color: #2F5496; font-style: italic;' : '';
+          const style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
 
           html += `<td title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
         }
@@ -676,9 +1084,9 @@
       const totalRows = dims.endRow - dims.startRow + 1;
       const totalCols = dims.endCol - dims.startCol + 1;
       if (totalRows > rowsToShow || totalCols > colsToShow) {
-        html += `<p style="color: #666; font-size: 12px; margin-top: 10px;">
-          Showing ${rowsToShow} of ${totalRows} rows, ${colsToShow} of ${totalCols} columns.
-        </p>`;
+        html += `<div class="preview-info">
+          Showing ${rowsToShow} of ${totalRows.toLocaleString()} rows, ${colsToShow} of ${totalCols.toLocaleString()} columns
+        </div>`;
       }
 
       document.getElementById('preview').innerHTML = html;
