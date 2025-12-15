@@ -21,20 +21,9 @@ export interface ParsedElement {
   full: string;
 }
 
-/**
- * Unescape XML entities
- *
- * @param str - String with XML entities
- * @returns Unescaped string
- */
-export function unescapeXml(str: string): string {
-  return str
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&'); // Must be last to avoid double-unescaping
-}
+// Import and re-export unescapeXml from xlsx.xml.ts (single source of truth)
+import { unescapeXml } from './xlsx.xml.js';
+export { unescapeXml };
 
 /**
  * Parse a single element by tag name
