@@ -1,0 +1,98 @@
+/**
+ * Cellify Documentation Theme
+ * Using emerald green as the primary color to match the demo theme
+ */
+
+/* Light mode */
+:root {
+  --ifm-color-primary: #059669;
+  --ifm-color-primary-dark: #047857;
+  --ifm-color-primary-darker: #047857;
+  --ifm-color-primary-darkest: #065f46;
+  --ifm-color-primary-light: #10b981;
+  --ifm-color-primary-lighter: #34d399;
+  --ifm-color-primary-lightest: #6ee7b7;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(5, 150, 105, 0.1);
+  --ifm-link-color: #059669;
+  --ifm-navbar-link-hover-color: #059669;
+}
+
+/* Dark mode */
+[data-theme='dark'] {
+  --ifm-color-primary: #10b981;
+  --ifm-color-primary-dark: #059669;
+  --ifm-color-primary-darker: #047857;
+  --ifm-color-primary-darkest: #065f46;
+  --ifm-color-primary-light: #34d399;
+  --ifm-color-primary-lighter: #6ee7b7;
+  --ifm-color-primary-lightest: #a7f3d0;
+  --docusaurus-highlighted-code-line-bg: rgba(16, 185, 129, 0.2);
+}
+
+/* Hero section */
+.hero--primary {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* Code blocks */
+.prism-code {
+  font-size: 14px;
+}
+
+/* Sidebar */
+.menu__link--active {
+  font-weight: 600;
+}
+
+/* Tables */
+table {
+  display: table;
+  width: 100%;
+}
+
+th {
+  background-color: var(--ifm-color-primary-lightest);
+}
+
+[data-theme='dark'] th {
+  background-color: var(--ifm-color-primary-darkest);
+}
+
+/* API reference styles */
+h3 code {
+  font-size: 1rem;
+  padding: 0.2rem 0.4rem;
+  background-color: var(--ifm-color-primary-lightest);
+  border-radius: 4px;
+}
+
+[data-theme='dark'] h3 code {
+  background-color: var(--ifm-color-primary-darkest);
+}
+
+/* Footer */
+.footer--dark {
+  background-color: #1f2937;
+}
+
+/* Admonitions */
+.alert--info {
+  --ifm-alert-background-color: #ecfdf5;
+  --ifm-alert-border-color: #059669;
+}
+
+[data-theme='dark'] .alert--info {
+  --ifm-alert-background-color: #064e3b;
+}
+
+/* Button styles */
+.button--secondary {
+  color: #059669;
+  border-color: #059669;
+}
+
+.button--secondary:hover {
+  background-color: #059669;
+  color: white;
+}

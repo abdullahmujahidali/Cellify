@@ -3,6 +3,9 @@ node_modules/
 
 # Build output
 dist/
+demo/dist/
+docs-site/build/
+docs-site/.docusaurus/
 
 not-to-commit/
 
