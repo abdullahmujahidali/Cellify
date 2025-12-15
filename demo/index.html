@@ -326,8 +326,13 @@
 
     th, td {
       border: 1px solid var(--gray-200);
-      padding: 10px 14px;
+      padding: 8px 12px;
       text-align: left;
+      vertical-align: top;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: normal;
+      min-width: 100px;
     }
 
     th {
@@ -336,10 +341,15 @@
       font-weight: 600;
       position: sticky;
       top: 0;
+      white-space: nowrap;
+      vertical-align: middle;
+      min-width: auto;
     }
 
     th:first-child {
       background: var(--gray-900);
+      min-width: 40px;
+      width: 40px;
     }
 
     tbody tr:nth-child(even) {
@@ -354,6 +364,10 @@
       background: var(--gray-100);
       font-weight: 500;
       color: var(--gray-700);
+      text-align: center;
+      vertical-align: middle;
+      min-width: 40px;
+      width: 40px;
     }
 
     /* Stats */
@@ -1030,9 +1044,6 @@
 
     function displaySheet(sheet) {
       const dims = sheet.dimensions;
-      console.log('Sheet dimensions:', dims);
-      console.log('Sheet cells size:', sheet.cells?.size || 'N/A');
-      console.log('Sheet merges:', sheet.merges?.length || 0);
 
       if (!dims) {
         document.getElementById('preview').innerHTML = `
@@ -1054,7 +1065,8 @@
       for (const merge of (sheet.merges || [])) {
         const rowSpan = merge.endRow - merge.startRow + 1;
         const colSpan = merge.endCol - merge.startCol + 1;
-        mergeStarts.set(`${merge.startRow},${merge.startCol}`, { rowSpan, colSpan });
+        const key = `${merge.startRow},${merge.startCol}`;
+        mergeStarts.set(key, { rowSpan, colSpan });
 
         for (let r = merge.startRow; r <= merge.endRow; r++) {
           for (let c = merge.startCol; c <= merge.endCol; c++) {
@@ -1102,9 +1114,10 @@
           const mergeInfo = mergeStarts.get(cellKey);
           let spanAttrs = '';
           if (mergeInfo) {
+            console.log(`Found merge at ${cellKey}: rowSpan=${mergeInfo.rowSpan}, colSpan=${mergeInfo.colSpan}`);
             if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
             if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
-            style += ' background: #F0FDF4; border: 1px solid #86EFAC;'; // Highlight merged cells
+            style += ' background: #ECFDF5; border: 2px solid #10B981;'; // Highlight merged cells with visible border
           }
 
           html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
