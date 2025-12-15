@@ -105,6 +105,21 @@ const buffer = workbookToXlsx(workbook);
 writeFileSync('output.xlsx', buffer);
 ```
 
+### Export with Comments
+
+```typescript
+const workbook = new Workbook();
+const sheet = workbook.addSheet('Data');
+
+// Add data with comments
+sheet.cell(0, 0).value('Status').comment('Review status indicator');
+sheet.cell(0, 1).value('Sales').comment('Q4 2024 figures');
+sheet.cell(1, 0).value('Approved');
+sheet.cell(1, 1).value(45000).comment('Includes online and retail');
+
+const blob = workbookToXlsxBlob(workbook);
+```
+
 ## Importing from Excel
 
 ### Basic Import
@@ -165,6 +180,7 @@ const result = await xlsxBlobToWorkbook(file, {
   importDimensions: true,    // Import column widths/row heights (default: true)
   importFreezePanes: true,   // Import freeze panes (default: true)
   importProperties: true,    // Import document properties (default: true)
+  importComments: true,      // Import cell comments/notes (default: true)
 
   // Limit data size
   maxRows: 1000,            // Max rows to import (0 = unlimited)
@@ -182,6 +198,22 @@ const buffer = readFileSync('data.xlsx');
 const result = xlsxToWorkbook(new Uint8Array(buffer));
 
 console.log('Imported:', result.stats.totalCells, 'cells');
+```
+
+### Accessing Imported Comments
+
+```typescript
+const result = await xlsxBlobToWorkbook(file);
+const { workbook } = result;
+
+// Iterate through cells and access comments
+workbook.sheets.forEach(sheet => {
+  for (const cell of sheet.cells()) {
+    if (cell.comment) {
+      console.log(`Cell ${cell.address}: "${cell.value}" has comment: "${cell.comment}"`);
+    }
+  }
+});
 ```
 
 ## Import Result Structure
@@ -219,6 +251,7 @@ interface XlsxImportResult {
 | Auto filters | ✅ | ✅ |
 | Multiple sheets | ✅ | ✅ |
 | Document properties | ✅ | ✅ |
+| Cell comments/notes | ✅ | ✅ |
 | Hyperlinks | ❌ | ❌ |
 | Images/Charts | ❌ | ❌ |
 | Conditional formatting | ❌ | ❌ |

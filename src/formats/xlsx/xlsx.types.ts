@@ -149,6 +149,8 @@ export const REL_TYPES = {
   styles: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
   coreProperties: 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties',
   extendedProperties: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties',
+  comments: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
+  vmlDrawing: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing',
 } as const;
 
 /**
@@ -161,6 +163,8 @@ export const CONTENT_TYPES = {
   sharedStrings: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml',
   coreProperties: 'application/vnd.openxmlformats-package.core-properties+xml',
   extendedProperties: 'application/vnd.openxmlformats-officedocument.extended-properties+xml',
+  comments: 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml',
+  vmlDrawing: 'application/vnd.openxmlformats-officedocument.vmlDrawing',
 } as const;
 
 /**

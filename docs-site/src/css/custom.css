@@ -96,3 +96,29 @@ h3 code {
   background-color: #059669;
   color: white;
 }
+
+/* Hero buttons - make outline button visible on green background */
+.hero--primary .button--secondary {
+  background-color: white;
+  color: #059669;
+  border-color: white;
+}
+
+.hero--primary .button--secondary:hover {
+  background-color: #f0fdf4;
+  color: #047857;
+  border-color: #f0fdf4;
+}
+
+.hero--primary .button--outline {
+  background-color: transparent;
+  color: white;
+  border-color: white;
+  border-width: 2px;
+}
+
+.hero--primary .button--outline:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  border-color: white;
+}

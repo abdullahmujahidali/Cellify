@@ -1451,4 +1451,178 @@ describe('XLSX Import', () => {
       expect(workbook.properties.author).toBe('Test Author');
     });
   });
+
+  describe('Comments', () => {
+    it('should export cell comments', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cell1 = sheet.cell('A1');
+      cell1.value = 'Value';
+      cell1.setComment('This is a comment');
+      const cell2 = sheet.cell('A2');
+      cell2.value = 'Another';
+      cell2.setComment('Another comment', 'Author Name');
+
+      const xlsx = workbookToXlsx(wb);
+
+      // Check that comments file exists
+      expect(hasFile(xlsx, 'xl/comments1.xml')).toBe(true);
+
+      // Check comments content
+      const commentsXml = getXmlFile(xlsx, 'xl/comments1.xml');
+      expect(commentsXml).toContain('<comments');
+      expect(commentsXml).toContain('This is a comment');
+      expect(commentsXml).toContain('Another comment');
+      expect(commentsXml).toContain('Author Name');
+      expect(commentsXml).toContain('ref="A1"');
+      expect(commentsXml).toContain('ref="A2"');
+    });
+
+    it('should not create comments file when no comments exist', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'No comment here';
+
+      const xlsx = workbookToXlsx(wb);
+
+      expect(hasFile(xlsx, 'xl/comments1.xml')).toBe(false);
+    });
+
+    it('should export comments with default author', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cell = sheet.cell('A1');
+      cell.value = 'Value';
+      cell.setComment('Comment without author');
+
+      const xlsx = workbookToXlsx(wb);
+      const commentsXml = getXmlFile(xlsx, 'xl/comments1.xml');
+
+      // Should have authors section with at least empty default author
+      expect(commentsXml).toContain('<authors>');
+      expect(commentsXml).toContain('</authors>');
+      expect(commentsXml).toContain('authorId="0"');
+    });
+
+    it('should export comments with multiple authors', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cellA = sheet.cell('A1');
+      cellA.value = 'A';
+      cellA.setComment('Comment 1', 'Alice');
+      const cellB = sheet.cell('A2');
+      cellB.value = 'B';
+      cellB.setComment('Comment 2', 'Bob');
+      const cellC = sheet.cell('A3');
+      cellC.value = 'C';
+      cellC.setComment('Comment 3', 'Alice'); // Same author
+
+      const xlsx = workbookToXlsx(wb);
+      const commentsXml = getXmlFile(xlsx, 'xl/comments1.xml');
+
+      expect(commentsXml).toContain('<author>Alice</author>');
+      expect(commentsXml).toContain('<author>Bob</author>');
+    });
+
+    it('should round-trip comments', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Comments');
+      const cell1 = sheet.cell('A1');
+      cell1.value = 'Value 1';
+      cell1.setComment('First comment');
+      const cell2 = sheet.cell('B2');
+      cell2.value = 'Value 2';
+      cell2.setComment('Second comment', 'Test Author');
+      const cell3 = sheet.cell('A3');
+      cell3.value = 'Value 3';
+      cell3.setComment('Third comment with special chars: <>&"');
+
+      const xlsx = workbookToXlsx(wb);
+      const result = xlsxToWorkbook(xlsx);
+      const imported = result.workbook.sheets[0];
+
+      // Check comments were imported
+      const importedCell1 = imported.getCell(0, 0);
+      expect(importedCell1?.comment).toBeDefined();
+      expect(importedCell1?.comment?.text).toBe('First comment');
+
+      const importedCell2 = imported.getCell(1, 1);
+      expect(importedCell2?.comment).toBeDefined();
+      expect(importedCell2?.comment?.text).toBe('Second comment');
+      expect(importedCell2?.comment?.author).toBe('Test Author');
+
+      const importedCell3 = imported.getCell(2, 0);
+      expect(importedCell3?.comment).toBeDefined();
+      expect(importedCell3?.comment?.text).toBe('Third comment with special chars: <>&"');
+    });
+
+    it('should handle comments on multiple sheets', () => {
+      const wb = new Workbook();
+      const sheet1 = wb.addSheet('Sheet1');
+      const sheet2 = wb.addSheet('Sheet2');
+
+      const s1Cell = sheet1.cell('A1');
+      s1Cell.value = 'S1';
+      s1Cell.setComment('Sheet 1 comment');
+      const s2Cell = sheet2.cell('A1');
+      s2Cell.value = 'S2';
+      s2Cell.setComment('Sheet 2 comment');
+
+      const xlsx = workbookToXlsx(wb);
+
+      expect(hasFile(xlsx, 'xl/comments1.xml')).toBe(true);
+      expect(hasFile(xlsx, 'xl/comments2.xml')).toBe(true);
+
+      const comments1 = getXmlFile(xlsx, 'xl/comments1.xml');
+      const comments2 = getXmlFile(xlsx, 'xl/comments2.xml');
+
+      expect(comments1).toContain('Sheet 1 comment');
+      expect(comments2).toContain('Sheet 2 comment');
+    });
+
+    it('should import comments with importComments option disabled', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cell = sheet.cell('A1');
+      cell.value = 'Value';
+      cell.setComment('This comment should not be imported');
+
+      const xlsx = workbookToXlsx(wb);
+      const result = xlsxToWorkbook(xlsx, { importComments: false });
+      const imported = result.workbook.sheets[0];
+
+      // Comment should not be imported
+      const importedCell = imported.getCell(0, 0);
+      expect(importedCell?.comment).toBeUndefined();
+    });
+
+    it('should create worksheet rels for comments', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cell = sheet.cell('A1');
+      cell.value = 'Value';
+      cell.setComment('Comment');
+
+      const xlsx = workbookToXlsx(wb);
+
+      // Check worksheet rels file exists
+      expect(hasFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+
+      const relsXml = getXmlFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels');
+      expect(relsXml).toContain('comments');
+    });
+
+    it('should include comments content type', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      const cell = sheet.cell('A1');
+      cell.value = 'Value';
+      cell.setComment('Comment');
+
+      const xlsx = workbookToXlsx(wb);
+      const contentTypes = getXmlFile(xlsx, '[Content_Types].xml');
+
+      expect(contentTypes).toContain('comments');
+    });
+  });
 });

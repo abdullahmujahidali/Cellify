@@ -605,6 +605,81 @@
       font-size: 48px;
       margin-bottom: 16px;
     }
+
+    /* Cell selection and editing */
+    td.selected {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+      background-color: var(--primary-light) !important;
+    }
+
+    td.editing {
+      padding: 0;
+      overflow: visible;
+      position: relative;
+    }
+
+    td.editing input {
+      position: absolute;
+      left: 0;
+      top: 0;
+      min-width: 100%;
+      width: auto;
+      height: 100%;
+      min-height: 32px;
+      border: none;
+      padding: 8px 12px;
+      font-size: inherit;
+      font-family: inherit;
+      background: var(--white);
+      outline: 2px solid var(--primary);
+      box-sizing: border-box;
+      z-index: 10;
+    }
+
+    td.modified::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 6px;
+      height: 6px;
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    /* Cursor for editable cells */
+    tbody td:not(:first-child) {
+      cursor: cell;
+    }
+
+    td.has-comment::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 8px 8px 0;
+      border-color: transparent #F59E0B transparent transparent;
+    }
+
+    /* Edit hint in info bar */
+    .edit-hint {
+      color: var(--gray-500);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .edit-hint kbd {
+      background: var(--gray-200);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -642,6 +717,7 @@
         <button class="primary" id="btnStyled">🎨 Styled Spreadsheet</button>
         <button class="primary" id="btnFormula">🔢 With Formulas</button>
         <button class="primary" id="btnMultiSheet">📑 Multi-Sheet</button>
+        <button class="primary" id="btnComments">💬 With Comments</button>
       </div>
     </div>
 
@@ -958,6 +1034,66 @@
       log('Downloaded multi-sheet.xlsx', 'success');
     }
 
+    function exportCommentsExample() {
+      log('Creating comments example...');
+
+      const workbook = new Workbook();
+      workbook.title = 'Comments Example';
+
+      const sheet = workbook.addSheet('Reviews');
+
+      // Headers
+      const headers = ['Product', 'Rating', 'Reviewer', 'Status'];
+      headers.forEach((header, i) => {
+        const cell = sheet.cell(0, i);
+        cell.value = header;
+        cell.style = {
+          font: { bold: true, color: '#FFFFFF' },
+          fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#059669' },
+          alignment: { horizontal: 'center' },
+        };
+      });
+
+      // Data with comments
+      const reviews = [
+        { product: 'Laptop Pro', rating: 5, reviewer: 'Alice', status: 'Approved', comment: 'Excellent product! Fast shipping and great quality.' },
+        { product: 'Wireless Mouse', rating: 4, reviewer: 'Bob', status: 'Pending', comment: 'Good mouse but battery drains quickly. Needs follow-up.' },
+        { product: 'USB Hub', rating: 3, reviewer: 'Charlie', status: 'Flagged', comment: 'Product received damaged. Customer requesting refund.' },
+      ];
+
+      reviews.forEach((review, i) => {
+        const row = i + 1;
+        sheet.cell(row, 0).value = review.product;
+
+        const ratingCell = sheet.cell(row, 1);
+        ratingCell.value = review.rating;
+        ratingCell.setComment(`Rating: ${review.rating}/5 stars`, review.reviewer);
+
+        sheet.cell(row, 2).value = review.reviewer;
+
+        const statusCell = sheet.cell(row, 3);
+        statusCell.value = review.status;
+        statusCell.setComment(review.comment, 'System');
+
+        if (review.status === 'Approved') {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#D1FAE5' } };
+        } else if (review.status === 'Flagged') {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FEE2E2' } };
+        } else {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FEF3C7' } };
+        }
+      });
+
+      sheet.setColumnWidth(0, 18);
+      sheet.setColumnWidth(1, 10);
+      sheet.setColumnWidth(2, 12);
+      sheet.setColumnWidth(3, 12);
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'with-comments.xlsx');
+      log('Downloaded with-comments.xlsx (hover over cells to see comments)', 'success');
+    }
+
     // File import
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -1003,6 +1139,7 @@
 
         window.currentWorkbook = result.workbook;
         window.currentSheetIndex = 0;
+        undoStack.length = 0;
 
         displayImportResult(result);
         log(`Successfully imported ${file.name}`, 'success');
@@ -1087,6 +1224,9 @@
       window.currentSheetIndex = index;
       const sheet = window.currentWorkbook.sheets[index];
 
+      // Clear undo stack when switching sheets
+      undoStack.length = 0;
+
       // Update tabs
       document.querySelectorAll('.sheet-tab').forEach((tab, i) => {
         tab.classList.toggle('active', i === index);
@@ -1162,10 +1302,23 @@
             value = value.toLocaleString();
           }
 
-          // Show formula indicator
+          // Build cell style from imported styles
           const formula = cell?.formula;
-          const title = formula ? `Formula: =${escapeHtml(formula.formula)}` : '';
-          let style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
+          const comment = cell?.comment;
+          let titleParts = [];
+          if (formula) titleParts.push(`Formula: =${escapeHtml(formula.formula)}`);
+          if (comment) {
+            const commentText = typeof comment.text === 'string' ? comment.text : comment.text.plainText || '';
+            titleParts.push(`Comment: ${escapeHtml(commentText)}${comment.author ? ` - ${escapeHtml(comment.author)}` : ''}`);
+          }
+          let title = titleParts.join('\n');
+          let style = cellStyleToCss(cell?.style);
+          let cssClass = comment ? 'has-comment' : '';
+
+          // Add formula indicator if no font color is set
+          if (formula && !cell?.style?.font?.color) {
+            style += 'color: #059669; font-style: italic;';
+          }
 
           // Check if this cell starts a merge
           const mergeInfo = mergeStarts.get(cellKey);
@@ -1175,7 +1328,7 @@
             if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
           }
 
-          html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
+          html += `<td${spanAttrs} data-row="${r}" data-col="${c}" title="${title}" style="${style}" class="${cssClass}">${escapeHtml(String(value))}</td>`;
         }
         html += '</tr>';
       }
@@ -1190,8 +1343,13 @@
         </div>`;
       }
 
+      html += `<div class="edit-hint">
+        <kbd>Click</kbd> to select · <kbd>Double-click</kbd> or <kbd>Enter</kbd> to edit · <kbd>Tab</kbd> / <kbd>Arrow keys</kbd> to navigate · <kbd>Esc</kbd> to cancel
+      </div>`;
+
       document.getElementById('preview').innerHTML = html;
       initResizeHandlers();
+      initCellEditHandlers();
     }
 
     function initResizeHandlers() {
@@ -1279,6 +1437,406 @@
       window.resizeListeners = { previewMouseDown, docMouseMove, docMouseUp };
     }
 
+    // Cell editing state
+    let selectedRow = null;
+    let selectedCol = null;
+    let isEditing = false;
+
+    // Undo stack for cell edits: [{row, col, oldValue, newValue}, ...]
+    const undoStack = [];
+    const MAX_UNDO_STACK = 50;
+
+    function initCellEditHandlers() {
+      const preview = document.getElementById('preview');
+      const table = document.getElementById('previewTable');
+      if (!table) return;
+
+      // Remove old listeners if they exist
+      if (window.cellEditListeners) {
+        preview.removeEventListener('click', window.cellEditListeners.onClick);
+        preview.removeEventListener('dblclick', window.cellEditListeners.onDblClick);
+        document.removeEventListener('keydown', window.cellEditListeners.onKeyDown);
+      }
+
+      // Reset state
+      selectedRow = null;
+      selectedCol = null;
+      isEditing = false;
+
+      const onClick = (e) => {
+        const td = e.target.closest('td[data-row][data-col]');
+        if (td && !isEditing) {
+          const row = parseInt(td.dataset.row);
+          const col = parseInt(td.dataset.col);
+          selectCell(row, col);
+        }
+      };
+
+      const onDblClick = (e) => {
+        const td = e.target.closest('td[data-row][data-col]');
+        if (td) {
+          const row = parseInt(td.dataset.row);
+          const col = parseInt(td.dataset.col);
+          selectCell(row, col);
+          startEditing(row, col);
+        }
+      };
+
+      const onKeyDown = (e) => {
+        handleCellKeyDown(e);
+      };
+
+      preview.addEventListener('click', onClick);
+      preview.addEventListener('dblclick', onDblClick);
+      document.addEventListener('keydown', onKeyDown);
+
+      window.cellEditListeners = { onClick, onDblClick, onKeyDown };
+    }
+
+    function selectCell(row, col) {
+      // Clear previous selection
+      document.querySelectorAll('td.selected').forEach(td => td.classList.remove('selected'));
+
+      // If clicking same cell while editing, don't change selection
+      if (isEditing && row === selectedRow && col === selectedCol) {
+        return;
+      }
+
+      // If editing another cell, save first
+      if (isEditing) {
+        const input = document.querySelector('td.editing input');
+        if (input) {
+          saveEdit(selectedRow, selectedCol, input.value);
+        }
+      }
+
+      selectedRow = row;
+      selectedCol = col;
+
+      // Find and highlight the cell
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (td) {
+        td.classList.add('selected');
+      }
+    }
+
+    function startEditing(row, col) {
+      if (isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.getCell(row, col);
+
+      // Get current value or formula
+      let editValue = '';
+      if (cell?.formula) {
+        editValue = '=' + cell.formula.formula;
+      } else if (cell?.value !== null && cell?.value !== undefined) {
+        if (cell.value instanceof Date) {
+          editValue = cell.value.toISOString().split('T')[0]; // YYYY-MM-DD format
+        } else {
+          editValue = String(cell.value);
+        }
+      }
+
+      isEditing = true;
+      td.classList.add('editing');
+
+      // Store original content for cancel
+      td.dataset.originalContent = td.innerHTML;
+
+      // Create input
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.autocomplete = 'off';
+      input.setAttribute('data-form-type', 'other');  // Hint to password managers to ignore
+      input.value = editValue;
+      td.innerHTML = '';
+      td.appendChild(input);
+
+      // Auto-size input based on content
+      const minWidth = td.offsetWidth;
+      const textWidth = getTextWidth(editValue, getComputedStyle(input).font);
+      input.style.width = Math.max(minWidth, textWidth + 30) + 'px';
+
+      input.focus();
+      input.select();
+      // Scroll to beginning of input to show full text
+      input.scrollLeft = 0;
+
+      // Input event handlers
+      input.addEventListener('blur', () => {
+        if (isEditing) {
+          saveEdit(row, col, input.value);
+        }
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveEdit(row, col, input.value);
+          // Move to next row
+          moveSelection(1, 0);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelEdit(row, col);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          saveEdit(row, col, input.value);
+          moveSelection(0, e.shiftKey ? -1 : 1);
+        }
+      });
+    }
+
+    function saveEdit(row, col, newValue) {
+      if (!isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.cell(row, col);
+      const oldValue = cell.value;
+
+      // Parse the new value
+      const parsed = parseInputValue(newValue);
+
+      // Update the cell
+      if (parsed.isFormula) {
+        cell.setFormula(parsed.value);
+        log(`Cell ${columnLetter(col)}${row + 1}: Set formula =${parsed.value}`, 'info');
+      } else {
+        cell.value = parsed.value;
+        const displayOld = oldValue instanceof Date ? oldValue.toLocaleDateString() : oldValue;
+        const displayNew = parsed.value instanceof Date ? parsed.value.toLocaleDateString() : parsed.value;
+        if (displayOld !== displayNew) {
+          log(`Cell ${columnLetter(col)}${row + 1}: "${displayOld}" → "${displayNew}"`, 'info');
+        }
+      }
+
+      // Push to undo stack
+      undoStack.push({ row, col, oldValue, newValue: parsed.value, wasFormula: parsed.isFormula });
+      if (undoStack.length > MAX_UNDO_STACK) {
+        undoStack.shift(); // Remove oldest entry
+      }
+
+      // Update display
+      isEditing = false;
+      td.classList.remove('editing');
+
+      let displayValue = '';
+      if (cell.formula) {
+        displayValue = cell.value !== null && cell.value !== undefined ? cell.value : '';
+        td.style.color = '#059669';
+        td.style.fontStyle = 'italic';
+        td.style.fontWeight = '500';
+        td.title = `Formula: =${escapeHtml(cell.formula.formula)}`;
+      } else {
+        if (cell.value instanceof Date) {
+          displayValue = cell.value.toLocaleDateString();
+        } else if (typeof cell.value === 'number') {
+          displayValue = cell.value.toLocaleString();
+        } else {
+          displayValue = cell.value ?? '';
+        }
+        td.style.color = '';
+        td.style.fontStyle = '';
+        td.style.fontWeight = '';
+        td.title = '';
+      }
+
+      td.textContent = String(displayValue);
+      td.classList.add('modified');
+      delete td.dataset.originalContent;
+    }
+
+    function cancelEdit(row, col) {
+      if (!isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      isEditing = false;
+      td.classList.remove('editing');
+
+      // Restore original content
+      if (td.dataset.originalContent !== undefined) {
+        td.innerHTML = td.dataset.originalContent;
+        delete td.dataset.originalContent;
+      }
+
+      log(`Edit cancelled for cell ${columnLetter(col)}${row + 1}`, 'info');
+    }
+
+    function undoLastEdit() {
+      if (undoStack.length === 0) {
+        log('Nothing to undo', 'info');
+        return;
+      }
+
+      const action = undoStack.pop();
+      const { row, col, oldValue } = action;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.cell(row, col);
+
+      if (oldValue !== undefined && oldValue !== null) {
+        // Check if old value was a formula
+        if (cell.formula) {
+          cell.clearFormula();
+        }
+        cell.value = oldValue;
+      } else {
+        cell.clear();
+      }
+
+      // Update the display
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (td) {
+        let displayValue = '';
+        if (oldValue instanceof Date) {
+          displayValue = oldValue.toLocaleDateString();
+        } else if (oldValue !== undefined && oldValue !== null) {
+          displayValue = String(oldValue);
+        }
+        td.textContent = displayValue;
+      }
+
+      // Select the cell that was undone
+      selectCell(row, col);
+
+      const displayOld = oldValue instanceof Date ? oldValue.toLocaleDateString() : oldValue;
+      log(`Undo: Cell ${columnLetter(col)}${row + 1} restored to "${displayOld}"`, 'info');
+    }
+
+    function parseInputValue(str) {
+      const trimmed = str.trim();
+
+      // Check for formula
+      if (trimmed.startsWith('=')) {
+        return { isFormula: true, value: trimmed.slice(1) };
+      }
+
+      // Check for empty
+      if (trimmed === '') {
+        return { isFormula: false, value: '' };
+      }
+
+      // Check for boolean
+      if (trimmed.toLowerCase() === 'true') {
+        return { isFormula: false, value: true };
+      }
+      if (trimmed.toLowerCase() === 'false') {
+        return { isFormula: false, value: false };
+      }
+
+      // Check for number
+      const num = Number(trimmed);
+      if (!isNaN(num) && trimmed !== '') {
+        return { isFormula: false, value: num };
+      }
+
+      // Check for date (YYYY-MM-DD format)
+      const dateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (dateMatch) {
+        const date = new Date(trimmed);
+        if (!isNaN(date.getTime())) {
+          return { isFormula: false, value: date };
+        }
+      }
+
+      // Default to string
+      return { isFormula: false, value: trimmed };
+    }
+
+    function handleCellKeyDown(e) {
+      // Ignore if not focused on the preview area or if target is an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      const preview = document.getElementById('preview');
+      if (!preview || !preview.contains(e.target)) {
+        return;
+      }
+
+      // Need a selected cell
+      if (selectedRow === null || selectedCol === null) return;
+
+      if (isEditing) {
+        // These are handled by the input's own keydown handler
+        return;
+      }
+
+      // Ctrl+Z / Cmd+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoLastEdit();
+        return;
+      }
+
+      // Enter or F2: Start editing
+      if (e.key === 'Enter' || e.key === 'F2') {
+        e.preventDefault();
+        startEditing(selectedRow, selectedCol);
+        return;
+      }
+
+      // Arrow keys: Navigate
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveSelection(-1, 0);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveSelection(1, 0);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        moveSelection(0, -1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        moveSelection(0, 1);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        moveSelection(0, e.shiftKey ? -1 : 1);
+      }
+
+      // Start typing: Start editing with the typed character
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        startEditing(selectedRow, selectedCol);
+        // Replace value with the typed character
+        const input = document.querySelector('td.editing input');
+        if (input) {
+          input.value = e.key;
+          // Move cursor to end
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }
+    }
+
+    function moveSelection(rowDelta, colDelta) {
+      if (selectedRow === null || selectedCol === null) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const dims = sheet.dimensions;
+      if (!dims) return;
+
+      // Find next valid cell within preview bounds
+      const table = document.getElementById('previewTable');
+      if (!table) return;
+
+      const newRow = selectedRow + rowDelta;
+      const newCol = selectedCol + colDelta;
+
+      // Check if the new cell exists in the table
+      const newTd = document.querySelector(`td[data-row="${newRow}"][data-col="${newCol}"]`);
+      if (newTd) {
+        selectCell(newRow, newCol);
+      }
+    }
+
     function columnLetter(index) {
       let letter = '';
       while (index >= 0) {
@@ -1293,6 +1851,104 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
+    }
+
+    // Measure text width using canvas
+    const textWidthCanvas = document.createElement('canvas');
+    const textWidthCtx = textWidthCanvas.getContext('2d');
+    function getTextWidth(text, font) {
+      textWidthCtx.font = font;
+      return textWidthCtx.measureText(text).width;
+    }
+
+    // Convert CellStyle to inline CSS
+    function cellStyleToCss(style) {
+      if (!style) return '';
+
+      let css = '';
+
+      // Font styles
+      if (style.font) {
+        const font = style.font;
+        if (font.bold) css += 'font-weight: bold;';
+        if (font.italic) css += 'font-style: italic;';
+        if (font.underline) css += 'text-decoration: underline;';
+        if (font.strikethrough) css += 'text-decoration: line-through;';
+        if (font.color) css += `color: ${font.color};`;
+        if (font.size) css += `font-size: ${font.size}pt;`;
+        if (font.name) css += `font-family: "${font.name}", sans-serif;`;
+      }
+
+      if (style.fill) {
+        const fill = style.fill;
+        if (fill.type === 'pattern' && fill.pattern === 'solid' && fill.foregroundColor) {
+          css += `background-color: ${fill.foregroundColor};`;
+        }
+      }
+
+      // Alignment
+      if (style.alignment) {
+        const align = style.alignment;
+        if (align.horizontal) {
+          css += `text-align: ${align.horizontal};`;
+        }
+        if (align.vertical) {
+          const vAlign = align.vertical === 'middle' ? 'middle' :
+                        align.vertical === 'top' ? 'top' : 'bottom';
+          css += `vertical-align: ${vAlign};`;
+        }
+        if (align.wrapText) {
+          css += 'white-space: pre-wrap;';
+        }
+        if (align.textRotation) {
+          css += `writing-mode: vertical-rl; transform: rotate(${align.textRotation}deg);`;
+        }
+      }
+
+      // Borders
+      if (style.borders) {
+        const borders = style.borders;
+        if (borders.top) {
+          css += `border-top: ${borderStyleToCss(borders.top)};`;
+        }
+        if (borders.right) {
+          css += `border-right: ${borderStyleToCss(borders.right)};`;
+        }
+        if (borders.bottom) {
+          css += `border-bottom: ${borderStyleToCss(borders.bottom)};`;
+        }
+        if (borders.left) {
+          css += `border-left: ${borderStyleToCss(borders.left)};`;
+        }
+      }
+
+      return css;
+    }
+
+    // Convert border style to CSS
+    function borderStyleToCss(border) {
+      if (!border) return 'none';
+
+      const styleMap = {
+        'thin': '1px solid',
+        'medium': '2px solid',
+        'thick': '3px solid',
+        'dashed': '1px dashed',
+        'dotted': '1px dotted',
+        'double': '3px double',
+        'hair': '1px solid',
+        'dashDot': '1px dashed',
+        'dashDotDot': '1px dashed',
+        'mediumDashed': '2px dashed',
+        'mediumDashDot': '2px dashed',
+        'mediumDashDotDot': '2px dashed',
+        'slantDashDot': '2px dashed'
+      };
+
+      const cssStyle = styleMap[border.style] || '1px solid';
+      const color = border.color || '#000000';
+
+      return `${cssStyle} ${color}`;
     }
 
     // Re-export functions
@@ -1321,6 +1977,7 @@
     document.getElementById('btnStyled').addEventListener('click', exportStyledExample);
     document.getElementById('btnFormula').addEventListener('click', exportFormulaExample);
     document.getElementById('btnMultiSheet').addEventListener('click', exportMultiSheetExample);
+    document.getElementById('btnComments').addEventListener('click', exportCommentsExample);
     document.getElementById('btnReExportXlsx').addEventListener('click', reExportXlsx);
     document.getElementById('btnReExportCsv').addEventListener('click', reExportCsv);
   </script>

@@ -14,6 +14,7 @@ const sidebars: SidebarsConfig = {
         'guides/merging',
         'guides/formulas',
         'guides/accessibility',
+        'guides/examples',
       ],
     },
     {

@@ -23,6 +23,9 @@ import {
   generateWorksheet,
   generateCoreProperties,
   generateAppProperties,
+  generateComments,
+  generateWorksheetRels,
+  sheetHasComments,
 } from './xlsx.parts.js';
 
 /**
@@ -85,11 +88,23 @@ export function workbookToXlsx(workbook: Workbook, options: XlsxExportOptions = 
     files['xl/sharedStrings.xml'] = strToU8(ctx.sharedStrings.generateXml());
   }
 
-  // Worksheets
+  // Worksheets and comments
   const sheets = workbook.sheets;
   for (let i = 0; i < sheets.length; i++) {
     const sheet = sheets[i];
-    files[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(generateWorksheet(sheet, ctx));
+    const sheetNum = i + 1;
+    files[`xl/worksheets/sheet${sheetNum}.xml`] = strToU8(generateWorksheet(sheet, ctx));
+    if (sheetHasComments(sheet)) {
+      const commentsXml = generateComments(sheet, sheetNum);
+      if (commentsXml) {
+        files[`xl/comments${sheetNum}.xml`] = strToU8(commentsXml);
+      }
+
+      const wsRels = generateWorksheetRels(sheetNum, true);
+      if (wsRels) {
+        files[`xl/worksheets/_rels/sheet${sheetNum}.xml.rels`] = strToU8(wsRels);
+      }
+    }
   }
 
   // Document properties (optional)

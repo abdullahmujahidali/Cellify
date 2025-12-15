@@ -46,6 +46,13 @@ export function generateContentTypes(ctx: XlsxBuildContext): string {
     parts.push(`<Override PartName="/docProps/app.xml" ContentType="${CONTENT_TYPES.extendedProperties}"/>`);
   }
 
+  const sheets = ctx.workbook.sheets;
+  for (let i = 0; i < sheets.length; i++) {
+    if (sheetHasComments(sheets[i])) {
+      parts.push(`<Override PartName="/xl/comments${i + 1}.xml" ContentType="${CONTENT_TYPES.comments}"/>`);
+    }
+  }
+
   parts.push('</Types>');
 
   return parts.join('\n');
@@ -504,6 +511,100 @@ export function generateAppProperties(ctx: XlsxBuildContext): string {
   parts.push(`<Properties xmlns="${NS.extendedProperties}">`);
   parts.push(`<Application>${escapeXml(ctx.options.application)}</Application>`);
   parts.push('</Properties>');
+
+  return parts.join('\n');
+}
+
+/**
+ * Check if a sheet has any comments
+ */
+export function sheetHasComments(sheet: Sheet): boolean {
+  for (const cell of sheet.cells()) {
+    if (cell.comment !== undefined) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Get all cells with comments from a sheet
+ */
+export function getCellsWithComments(sheet: Sheet): Cell[] {
+  const result: Cell[] = [];
+  for (const cell of sheet.cells()) {
+    if (cell.comment !== undefined) {
+      result.push(cell);
+    }
+  }
+  return result;
+}
+
+/**
+ * Generate xl/comments{n}.xml for a sheet
+ */
+export function generateComments(sheet: Sheet, _sheetIndex: number): string {
+  const parts: string[] = [XML_DECLARATION];
+  const cells = getCellsWithComments(sheet);
+
+  if (cells.length === 0) {
+    return '';
+  }
+
+  // Collect unique authors
+  const authorSet = new Set<string>();
+  authorSet.add(''); // Default author
+  for (const cell of cells) {
+    if (cell.comment?.author) {
+      authorSet.add(cell.comment.author);
+    }
+  }
+  const authors = Array.from(authorSet);
+  const authorIndex = new Map<string, number>();
+  authors.forEach((author, i) => authorIndex.set(author, i));
+
+  parts.push(`<comments xmlns="${NS.spreadsheetml}">`);
+
+  // Authors section
+  parts.push('<authors>');
+  for (const author of authors) {
+    parts.push(`<author>${escapeXml(author)}</author>`);
+  }
+  parts.push('</authors>');
+
+  parts.push('<commentList>');
+  for (const cell of cells) {
+    const comment = cell.comment!;
+    const author = comment.author || '';
+    const authorId = authorIndex.get(author) || 0;
+    const ref = cellRef(cell.row, cell.col);
+    const text = typeof comment.text === 'string' ? comment.text : richTextToString(comment.text);
+
+    parts.push(`<comment ref="${ref}" authorId="${authorId}">`);
+    parts.push('<text>');
+    parts.push(`<t>${sanitizeXmlString(text)}</t>`);
+    parts.push('</text>');
+    parts.push('</comment>');
+  }
+  parts.push('</commentList>');
+
+  parts.push('</comments>');
+
+  return parts.join('\n');
+}
+
+/**
+ * Generate worksheet relationships file for comments
+ */
+export function generateWorksheetRels(sheetIndex: number, hasComments: boolean): string | null {
+  if (!hasComments) {
+    return null;
+  }
+
+  const parts: string[] = [XML_DECLARATION];
+  parts.push(`<Relationships xmlns="${NS.packageRels}">`);
+  parts.push(`<Relationship Id="rId1" Type="${REL_TYPES.comments}" Target="../comments${sheetIndex}.xml"/>`);
+  parts.push('</Relationships>');
 
   return parts.join('\n');
 }

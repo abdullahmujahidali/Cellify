@@ -30,6 +30,7 @@ import {
   unescapeXml,
 } from './xlsx.parser.js';
 import { excelSerialToDate } from './xlsx.utils.js';
+import { a1ToAddress } from '../../types/cell.types.js';
 
 /**
  * Import an XLSX file into a Workbook
@@ -175,6 +176,38 @@ export function xlsxToWorkbook(
     const sheet = workbook.addSheet(sheetInfo.name);
     parseWorksheet(sheetXml, sheet, ctx);
     ctx.stats.sheetCount++;
+
+    if (opts.importComments) {
+      const sheetIndex = sheetInfo.sheetId;
+      const commentPaths = [
+        `xl/comments${sheetIndex}.xml`,
+        `xl/comments${i + 1}.xml`,
+      ];
+
+      const sheetRelsPath = sheetPath.replace(/\.xml$/, '.xml.rels').replace('worksheets/', 'worksheets/_rels/');
+      const sheetRelsXml = readFile(sheetRelsPath);
+      if (sheetRelsXml) {
+        const rels = parseElements(sheetRelsXml, 'Relationship');
+        for (const rel of rels) {
+          const type = getAttr(rel, 'Type');
+          if (type?.includes('comments')) {
+            const target = getAttr(rel, 'Target');
+            if (target) {
+              const commentPath = resolveRelPath(sheetPath.substring(0, sheetPath.lastIndexOf('/') + 1), target);
+              commentPaths.unshift(commentPath);
+            }
+          }
+        }
+      }
+
+      for (const commentPath of commentPaths) {
+        const commentsXml = readFile(commentPath);
+        if (commentsXml) {
+          parseComments(commentsXml, sheet);
+          break;
+        }
+      }
+    }
 
     ctx.onProgress?.('sheets', i + 1, sheetsToImport.length);
   }
@@ -454,15 +487,16 @@ function parseWorksheet(xml: string, sheet: Sheet, ctx: XlsxParseContext): void 
       // Get the cell and set value
       const cell = sheet.cell(row, col);
 
-      if (value !== undefined && value !== null) {
+      if (formulaStr) {
+        cell.setFormula(formulaStr, value);
+        ctx.stats.formulaCells++;
+        // Only count toward totalCells if there's a cached result
+        if (value !== undefined && value !== null) {
+          ctx.stats.totalCells++;
+        }
+      } else if (value !== undefined && value !== null) {
         cell.value = value;
         ctx.stats.totalCells++;
-      }
-
-      // Set formula if present
-      if (formulaStr) {
-        cell.setFormula(formulaStr);
-        ctx.stats.formulaCells++;
       }
 
       // Apply style
@@ -518,6 +552,36 @@ function parseWorksheet(xml: string, sheet: Sheet, ctx: XlsxParseContext): void 
       // Use A1-style string reference directly
       sheet.setAutoFilter(ref);
     }
+  }
+}
+
+/**
+ * Parse comments XML and apply to sheet
+ */
+function parseComments(xml: string, sheet: Sheet): void {
+  const authors: string[] = [];
+  const authorElements = parseElements(xml, 'author');
+  for (const authorEl of authorElements) {
+    // Author element contains text directly
+    authors.push(unescapeXml(authorEl.inner) || '');
+  }
+
+  const commentElements = parseElements(xml, 'comment');
+  for (const commentEl of commentElements) {
+    const ref = getAttr(commentEl, 'ref');
+    const authorId = parseInt(getAttr(commentEl, 'authorId') || '0', 10);
+
+    if (!ref) continue;
+
+    const tElements = parseElements(commentEl.inner, 't');
+    const textContent = unescapeXml(tElements.map(t => t.inner).join(''));
+    if (!textContent) continue;
+
+    const { row, col } = a1ToAddress(ref);
+    const author = authors[authorId] || undefined;
+
+    const cell = sheet.cell(row, col);
+    cell.setComment(textContent, author);
   }
 }
 
