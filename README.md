@@ -21,6 +21,16 @@ A lightweight, zero-dependency\* spreadsheet library for JavaScript/TypeScript. 
 - **Universal** - Works in Node.js and browsers
 - **Accessible** - Built-in a11y helpers for screen readers
 
+## Demo
+
+Try the interactive demo to test import/export functionality:
+
+```bash
+npm run demo
+```
+
+![Cellify Demo](docs/images/demo-screenshot.png)
+
 ## Installation
 
 ```bash
