@@ -21,10 +21,7 @@ const config: Config = {
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
-
-  markdown: {
-    onBrokenMarkdownLinks: 'warn',
-  },
+  onBrokenMarkdownLinks: 'warn',
 
   i18n: {
     defaultLocale: 'en',
