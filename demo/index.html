@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cellify - Spreadsheet Library Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #059669;
+      --primary-hover: #047857;
+      --primary-light: #D1FAE5;
+      --primary-dark: #065F46;
+      --black: #111827;
+      --gray-900: #1F2937;
+      --gray-700: #374151;
+      --gray-500: #6B7280;
+      --gray-300: #D1D5DB;
+      --gray-200: #E5E7EB;
+      --gray-100: #F3F4F6;
+      --gray-50: #F9FAFB;
+      --white: #FFFFFF;
+      --warning: #F59E0B;
+      --warning-bg: #FEF3C7;
+      --error: #DC2626;
+      --success: #10B981;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--gray-50);
+      color: var(--black);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 20px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--black);
+      letter-spacing: -0.5px;
+    }
+
+    .logo-text span {
+      color: var(--primary);
+    }
+
+    .header-badge {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Main content */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--black);
+      margin: 0 0 12px 0;
+      letter-spacing: -0.5px;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--gray-500);
+      margin: 0;
+    }
+
+    /* Sections */
+    .section {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .section-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--primary-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .section h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--black);
+      margin: 0;
+    }
+
+    .section-description {
+      color: var(--gray-500);
+      font-size: 14px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .section-description code {
+      background: var(--gray-100);
+      color: var(--primary-dark);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    /* Buttons */
+    .button-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button.primary {
+      background: var(--primary);
+      color: var(--white);
+    }
+
+    button.primary:hover {
+      background: var(--primary-hover);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    button.secondary {
+      background: var(--white);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-300);
+    }
+
+    button.secondary:hover {
+      background: var(--gray-50);
+      border-color: var(--gray-400);
+    }
+
+    button.outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    button.outline:hover {
+      background: var(--primary-light);
+    }
+
+    button:disabled {
+      background: var(--gray-200);
+      color: var(--gray-500);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--gray-300);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--gray-50);
+      margin-bottom: 20px;
+    }
+
+    .drop-zone:hover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      border-style: solid;
+    }
+
+    .drop-zone input {
+      display: none;
+    }
+
+    .drop-zone-icon {
+      width: 64px;
+      height: 64px;
+      background: var(--white);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .drop-zone-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--black);
+      margin: 0 0 8px 0;
+    }
+
+    .drop-zone-subtitle {
+      font-size: 14px;
+      color: var(--gray-500);
+      margin: 0;
+    }
+
+    .drop-zone-formats {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .format-badge {
+      background: var(--white);
+      color: var(--gray-700);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--gray-200);
+    }
+
+    /* Preview area */
+    #preview {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid var(--gray-200);
+      padding: 8px 12px;
+      text-align: left;
+      vertical-align: top;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: normal;
+      min-width: 100px;
+    }
+
+    th {
+      background: var(--black);
+      color: var(--white);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+      vertical-align: middle;
+      min-width: auto;
+    }
+
+    th:first-child {
+      background: var(--gray-900);
+      min-width: 40px;
+      width: 40px;
+    }
+
+    tbody tr:nth-child(even) {
+      background: var(--gray-50);
+    }
+
+    tbody tr:hover {
+      background: var(--primary-light);
+    }
+
+    tbody td:first-child {
+      background: var(--gray-100);
+      font-weight: 500;
+      color: var(--gray-700);
+      text-align: center;
+      vertical-align: middle;
+      min-width: 40px;
+      width: 40px;
+    }
+
+    /* Stats */
+    .stats {
+      background: var(--primary-light);
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-dark);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--gray-700);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Warnings */
+    .warnings {
+      background: var(--warning-bg);
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border-left: 4px solid var(--warning);
+    }
+
+    .warnings-title {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin: 0 0 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .warnings ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--gray-700);
+    }
+
+    .warnings li {
+      margin: 4px 0;
+    }
+
+    /* Sheet tabs */
+    .sheet-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      background: var(--gray-100);
+      padding: 4px;
+      border-radius: 12px;
+    }
+
+    .sheet-tab {
+      padding: 10px 18px;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-600);
+      transition: all 0.2s ease;
+    }
+
+    .sheet-tab:hover {
+      background: var(--white);
+      color: var(--black);
+    }
+
+    .sheet-tab.active {
+      background: var(--white);
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Console log */
+    .console {
+      background: var(--gray-900);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .console-header {
+      background: var(--black);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .console-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .console-dot.red { background: #EF4444; }
+    .console-dot.yellow { background: #F59E0B; }
+    .console-dot.green { background: #10B981; }
+
+    .console-title {
+      color: var(--gray-400);
+      font-size: 13px;
+      font-weight: 500;
+      margin-left: 8px;
+    }
+
+    #log {
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: var(--gray-300);
+      padding: 16px;
+      max-height: 200px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    #log .error {
+      color: #F87171;
+    }
+
+    #log .success {
+      color: #34D399;
+    }
+
+    #log .info {
+      color: #60A5FA;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: var(--gray-500);
+      font-size: 14px;
+    }
+
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Preview info */
+    .preview-info {
+      color: var(--gray-500);
+      font-size: 13px;
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--gray-50);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--gray-500);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">C</div>
+        <div class="logo-text">Celli<span>fy</span></div>
+      </div>
+      <div class="header-badge">Interactive Demo</div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Hero -->
+    <div class="hero">
+      <h1>Excel Import & Export Made Simple</h1>
+      <p>A lightweight, zero-dependency spreadsheet library for JavaScript and TypeScript</p>
+    </div>
+
+    <!-- Export Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📤</div>
+        <h2>Export Excel Files</h2>
+      </div>
+      <p class="section-description">
+        Create and download sample Excel files to test the export functionality.
+        Each example demonstrates different Cellify features.
+      </p>
+
+      <div class="button-group">
+        <button class="primary" id="btnBasic">📊 Basic Example</button>
+        <button class="primary" id="btnStyled">🎨 Styled Spreadsheet</button>
+        <button class="primary" id="btnFormula">🔢 With Formulas</button>
+        <button class="primary" id="btnMultiSheet">📑 Multi-Sheet</button>
+      </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📥</div>
+        <h2>Import Excel/CSV Files</h2>
+      </div>
+      <p class="section-description">
+        Drop a file below to import and preview its contents. Supports <code>.xlsx</code> and <code>.csv</code> formats.
+      </p>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-icon">📁</div>
+        <p class="drop-zone-title">Drop your file here</p>
+        <p class="drop-zone-subtitle">or click to browse from your computer</p>
+        <div class="drop-zone-formats">
+          <span class="format-badge">.xlsx</span>
+          <span class="format-badge">.csv</span>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.csv">
+      </div>
+
+      <div id="importStats" style="display: none;">
+        <div class="stats" id="statsContent"></div>
+        <div class="warnings" id="warningsContent" style="display: none;"></div>
+        <div class="sheet-tabs" id="sheetTabs"></div>
+        <div id="preview"></div>
+
+        <div class="button-group" style="margin-top: 20px;">
+          <button class="primary" id="btnReExportXlsx">📤 Re-export as XLSX</button>
+          <button class="secondary" id="btnReExportCsv">📄 Export Current Sheet as CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Section -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">💻</div>
+        <h2>Console Output</h2>
+      </div>
+      <div class="console">
+        <div class="console-header">
+          <span class="console-dot red"></span>
+          <span class="console-dot yellow"></span>
+          <span class="console-dot green"></span>
+          <span class="console-title">Activity Log</span>
+        </div>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>Built with Cellify — A lightweight spreadsheet library for the modern web</p>
+  </footer>
+
+  <script type="module">
+    // Import from library
+    import {
+      Workbook,
+      workbookToXlsxBlob,
+      xlsxBlobToWorkbook,
+      csvToWorkbook,
+      sheetToCsv,
+    } from 'cellify';
+
+    // Make functions available globally
+    window.Workbook = Workbook;
+    window.workbookToXlsxBlob = workbookToXlsxBlob;
+    window.xlsxBlobToWorkbook = xlsxBlobToWorkbook;
+    window.csvToWorkbook = csvToWorkbook;
+    window.sheetToCsv = sheetToCsv;
+
+    // Current imported workbook
+    window.currentWorkbook = null;
+    window.currentSheetIndex = 0;
+
+    // Logging
+    function log(message, type = '') {
+      const logEl = document.getElementById('log');
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    window.log = log;
+
+    log('Cellify loaded successfully', 'success');
+
+    // Download helper
+    function download(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    window.download = download;
+
+    // Export examples
+    function exportBasicExample() {
+      log('Creating basic example...');
+
+      const workbook = new Workbook();
+      workbook.title = 'Basic Example';
+
+      const sheet = workbook.addSheet('Data');
+
+      // Headers
+      sheet.cell('A1').value = 'Name';
+      sheet.cell('B1').value = 'Age';
+      sheet.cell('C1').value = 'City';
+
+      // Data
+      const data = [
+        ['Alice', 28, 'New York'],
+        ['Bob', 34, 'San Francisco'],
+        ['Charlie', 22, 'Chicago'],
+        ['Diana', 31, 'Boston'],
+      ];
+
+      data.forEach((row, i) => {
+        row.forEach((value, j) => {
+          sheet.cell(i + 1, j).value = value;
+        });
+      });
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'basic-example.xlsx');
+      log('Downloaded basic-example.xlsx', 'success');
+    }
+
+    function exportStyledExample() {
+      log('Creating styled example...');
+
+      const workbook = new Workbook();
+      workbook.title = 'Styled Report';
+      workbook.author = 'Cellify Demo';
+
+      const sheet = workbook.addSheet('Sales Report');
+
+      // Title row (merged)
+      sheet.cell('A1').value = 'Q4 2024 Sales Report';
+      sheet.cell('A1').style = {
+        font: { bold: true, size: 18, color: '#FFFFFF' },
+        fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#2F5496' },
+        alignment: { horizontal: 'center' },
+      };
+      sheet.mergeCells('A1:D1');
+
+      // Headers
+      const headers = ['Product', 'Units', 'Price', 'Revenue'];
+      headers.forEach((header, i) => {
+        const cell = sheet.cell(2, i);
+        cell.value = header;
+        cell.style = {
+          font: { bold: true, color: '#FFFFFF' },
+          fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#4472C4' },
+          alignment: { horizontal: 'center' },
+          borders: {
+            bottom: { style: 'medium', color: '#000000' },
+          },
+        };
+      });
+
+      // Data
+      const data = [
+        ['Laptop Pro', 150, 1299.99, 194998.50],
+        ['Wireless Mouse', 500, 49.99, 24995.00],
+        ['Mechanical Keyboard', 300, 129.99, 38997.00],
+        ['USB-C Hub', 450, 79.99, 35995.50],
+        ['Monitor 27"', 200, 399.99, 79998.00],
+      ];
+
+      data.forEach((row, i) => {
+        row.forEach((value, j) => {
+          const cell = sheet.cell(i + 3, j);
+          cell.value = value;
+          if (j >= 2) {
+            cell.style = {
+              numberFormat: { formatCode: '#,##0.00' },
+            };
+          }
+        });
+      });
+
+      // Total row
+      sheet.cell('A8').value = 'Total';
+      sheet.cell('A8').style = { font: { bold: true } };
+      sheet.cell('D8').value = 374984.00;
+      sheet.cell('D8').style = {
+        font: { bold: true },
+        numberFormat: { formatCode: '#,##0.00' },
+        fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#E2EFDA' },
+      };
+
+      // Column widths
+      sheet.setColumnWidth(0, 20);
+      sheet.setColumnWidth(1, 10);
+      sheet.setColumnWidth(2, 12);
+      sheet.setColumnWidth(3, 15);
+
+      // Freeze header
+      sheet.freeze(3, 0);
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'styled-report.xlsx');
+      log('Downloaded styled-report.xlsx', 'success');
+    }
+
+    function exportFormulaExample() {
+      log('Creating formula example...');
+
+      const workbook = new Workbook();
+      const sheet = workbook.addSheet('Calculations');
+
+      // Headers
+      sheet.cell('A1').value = 'Item';
+      sheet.cell('B1').value = 'Quantity';
+      sheet.cell('C1').value = 'Price';
+      sheet.cell('D1').value = 'Total';
+
+      // Style headers
+      for (let i = 0; i < 4; i++) {
+        sheet.cell(0, i).style = {
+          font: { bold: true },
+          fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#D9E2F3' },
+        };
+      }
+
+      // Data with formulas
+      const items = [
+        ['Widget A', 10, 25.00],
+        ['Widget B', 5, 50.00],
+        ['Widget C', 20, 15.00],
+      ];
+
+      items.forEach((item, i) => {
+        sheet.cell(i + 1, 0).value = item[0];
+        sheet.cell(i + 1, 1).value = item[1];
+        sheet.cell(i + 1, 2).value = item[2];
+        sheet.cell(i + 1, 3).setFormula(`B${i + 2}*C${i + 2}`);
+      });
+
+      // Summary
+      sheet.cell('A5').value = 'Grand Total:';
+      sheet.cell('A5').style = { font: { bold: true } };
+      sheet.cell('D5').setFormula('SUM(D2:D4)');
+      sheet.cell('D5').style = {
+        font: { bold: true },
+        fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#C6EFCE' },
+      };
+
+      // Set column widths
+      sheet.setColumnWidth(0, 15);
+      sheet.setColumnWidth(1, 12);
+      sheet.setColumnWidth(2, 12);
+      sheet.setColumnWidth(3, 12);
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'formulas.xlsx');
+      log('Downloaded formulas.xlsx (open in Excel to see calculated values)', 'success');
+    }
+
+    function exportMultiSheetExample() {
+      log('Creating multi-sheet example...');
+
+      const workbook = new Workbook();
+      workbook.title = 'Multi-Sheet Workbook';
+
+      // Sheet 1: Summary
+      const summary = workbook.addSheet('Summary');
+      summary.cell('A1').value = 'Department Summary';
+      summary.cell('A1').style = { font: { bold: true, size: 16 } };
+      summary.mergeCells('A1:C1');
+
+      summary.cell('A3').value = 'Department';
+      summary.cell('B3').value = 'Employees';
+      summary.cell('C3').value = 'Budget';
+
+      const depts = [
+        ['Engineering', 50, 5000000],
+        ['Marketing', 25, 2000000],
+        ['Sales', 40, 3000000],
+        ['HR', 10, 500000],
+      ];
+
+      depts.forEach((d, i) => {
+        summary.cell(i + 3, 0).value = d[0];
+        summary.cell(i + 3, 1).value = d[1];
+        summary.cell(i + 3, 2).value = d[2];
+      });
+
+      // Sheet 2: Engineering
+      const eng = workbook.addSheet('Engineering');
+      eng.cell('A1').value = 'Engineering Team';
+      eng.cell('A1').style = { font: { bold: true } };
+
+      // Sheet 3: Marketing
+      const mkt = workbook.addSheet('Marketing');
+      mkt.cell('A1').value = 'Marketing Team';
+      mkt.cell('A1').style = { font: { bold: true } };
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'multi-sheet.xlsx');
+      log('Downloaded multi-sheet.xlsx', 'success');
+    }
+
+    // File import
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    async function handleFile(file) {
+      log(`Importing ${file.name}...`, 'info');
+
+      try {
+        let result;
+
+        const lowerName = file.name.toLowerCase();
+        if (lowerName.endsWith('.xlsx')) {
+          result = await xlsxBlobToWorkbook(file);
+        } else if (lowerName.endsWith('.csv')) {
+          const text = await file.text();
+          result = { workbook: csvToWorkbook(text), stats: { sheetCount: 1 }, warnings: [] };
+        } else {
+          throw new Error('Unsupported file type. Please use .xlsx or .csv');
+        }
+
+        window.currentWorkbook = result.workbook;
+        window.currentSheetIndex = 0;
+
+        displayImportResult(result);
+        log(`Successfully imported ${file.name}`, 'success');
+      } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    function displayImportResult(result) {
+      const { workbook, stats, warnings } = result;
+
+      document.getElementById('importStats').style.display = 'block';
+
+      // Stats with new card design
+      let statsHtml = `
+        <div class="stat-item">
+          <div class="stat-value">${workbook.sheetCount}</div>
+          <div class="stat-label">Sheets</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${(stats.totalCells || 0).toLocaleString()}</div>
+          <div class="stat-label">Total Cells</div>
+        </div>
+      `;
+      if (stats.formulaCells) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.formulaCells.toLocaleString()}</div>
+            <div class="stat-label">Formulas</div>
+          </div>
+        `;
+      }
+      if (stats.mergedRanges) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.mergedRanges}</div>
+            <div class="stat-label">Merged</div>
+          </div>
+        `;
+      }
+      if (stats.durationMs) {
+        statsHtml += `
+          <div class="stat-item">
+            <div class="stat-value">${stats.durationMs}ms</div>
+            <div class="stat-label">Import Time</div>
+          </div>
+        `;
+      }
+      document.getElementById('statsContent').innerHTML = statsHtml;
+
+      // Warnings
+      const warningsEl = document.getElementById('warningsContent');
+      if (warnings && warnings.length > 0) {
+        warningsEl.style.display = 'block';
+        warningsEl.innerHTML = `
+          <p class="warnings-title">⚠️ Warnings</p>
+          <ul>${warnings.map(w => `<li>${w.message}</li>`).join('')}</ul>
+        `;
+      } else {
+        warningsEl.style.display = 'none';
+      }
+
+      // Sheet tabs
+      const tabsEl = document.getElementById('sheetTabs');
+      tabsEl.innerHTML = workbook.sheets.map((sheet, i) =>
+        `<button class="sheet-tab ${i === 0 ? 'active' : ''}" data-sheet-index="${i}">${sheet.name}</button>`
+      ).join('');
+
+      // Add click handlers for sheet tabs
+      tabsEl.querySelectorAll('.sheet-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          selectSheet(parseInt(tab.dataset.sheetIndex));
+        });
+      });
+
+      // Display first sheet
+      displaySheet(workbook.sheets[0]);
+    }
+
+    function selectSheet(index) {
+      window.currentSheetIndex = index;
+      const sheet = window.currentWorkbook.sheets[index];
+
+      // Update tabs
+      document.querySelectorAll('.sheet-tab').forEach((tab, i) => {
+        tab.classList.toggle('active', i === index);
+      });
+
+      displaySheet(sheet);
+    }
+
+    function displaySheet(sheet) {
+      const dims = sheet.dimensions;
+
+      if (!dims) {
+        document.getElementById('preview').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p>This sheet is empty</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Limit preview to 50 rows and 20 columns from start
+      const rowsToShow = Math.min(dims.endRow - dims.startRow + 1, 50);
+      const colsToShow = Math.min(dims.endCol - dims.startCol + 1, 20);
+
+      const mergeStarts = new Map(); // "row,col" -> { rowSpan, colSpan }
+      const coveredCells = new Set(); // "row,col" cells that are covered by a merge
+
+      for (const merge of (sheet.merges || [])) {
+        const rowSpan = merge.endRow - merge.startRow + 1;
+        const colSpan = merge.endCol - merge.startCol + 1;
+        const key = `${merge.startRow},${merge.startCol}`;
+        mergeStarts.set(key, { rowSpan, colSpan });
+
+        for (let r = merge.startRow; r <= merge.endRow; r++) {
+          for (let c = merge.startCol; c <= merge.endCol; c++) {
+            if (r !== merge.startRow || c !== merge.startCol) {
+              coveredCells.add(`${r},${c}`);
+            }
+          }
+        }
+      }
+
+      let html = '<table><thead><tr><th></th>';
+
+      // Column headers
+      for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
+        html += `<th>${columnLetter(c)}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      // Rows
+      for (let r = dims.startRow; r < dims.startRow + rowsToShow; r++) {
+        html += `<tr><th>${r + 1}</th>`;
+        for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
+          const cellKey = `${r},${c}`;
+
+          if (coveredCells.has(cellKey)) {
+            continue;
+          }
+
+          const cell = sheet.getCell(r, c);
+          let value = cell?.value ?? '';
+
+          // Format value for display
+          if (value instanceof Date) {
+            value = value.toLocaleDateString();
+          } else if (typeof value === 'number') {
+            value = value.toLocaleString();
+          }
+
+          // Show formula indicator
+          const formula = cell?.formula;
+          const title = formula ? `Formula: =${formula.formula}` : '';
+          let style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
+
+          // Check if this cell starts a merge
+          const mergeInfo = mergeStarts.get(cellKey);
+          let spanAttrs = '';
+          if (mergeInfo) {
+            if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
+            if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
+          }
+
+          html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
+        }
+        html += '</tr>';
+      }
+
+      html += '</tbody></table>';
+
+      const totalRows = dims.endRow - dims.startRow + 1;
+      const totalCols = dims.endCol - dims.startCol + 1;
+      if (totalRows > rowsToShow || totalCols > colsToShow) {
+        html += `<div class="preview-info">
+          Showing ${rowsToShow} of ${totalRows.toLocaleString()} rows, ${colsToShow} of ${totalCols.toLocaleString()} columns
+        </div>`;
+      }
+
+      document.getElementById('preview').innerHTML = html;
+    }
+
+    function columnLetter(index) {
+      let letter = '';
+      while (index >= 0) {
+        letter = String.fromCharCode(65 + (index % 26)) + letter;
+        index = Math.floor(index / 26) - 1;
+      }
+      return letter;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+    }
+
+    // Re-export functions
+    function reExportXlsx() {
+      if (!window.currentWorkbook) return;
+
+      log('Re-exporting as XLSX...');
+      const blob = workbookToXlsxBlob(window.currentWorkbook);
+      download(blob, 're-exported.xlsx');
+      log('Downloaded re-exported.xlsx', 'success');
+    }
+
+    function reExportCsv() {
+      if (!window.currentWorkbook) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      log(`Exporting sheet "${sheet.name}" as CSV...`);
+
+      const csv = sheetToCsv(sheet);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      download(blob, `${sheet.name}.csv`);
+      log(`Downloaded ${sheet.name}.csv`, 'success');
+    }
+
+    document.getElementById('btnBasic').addEventListener('click', exportBasicExample);
+    document.getElementById('btnStyled').addEventListener('click', exportStyledExample);
+    document.getElementById('btnFormula').addEventListener('click', exportFormulaExample);
+    document.getElementById('btnMultiSheet').addEventListener('click', exportMultiSheetExample);
+    document.getElementById('btnReExportXlsx').addEventListener('click', reExportXlsx);
+    document.getElementById('btnReExportCsv').addEventListener('click', reExportCsv);
+  </script>
+</body>
+</html>
