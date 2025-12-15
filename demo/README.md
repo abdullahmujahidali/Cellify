@@ -66,6 +66,12 @@ Click the filter button (▼) in any column header to:
 - Apply multiple filters across columns
 - Clear filters to show all data
 
+### Column & Row Selection
+
+- **Click column header** (A, B, C...) to select entire column
+- **Click row header** (1, 2, 3...) to select entire row
+- Selected columns/rows are highlighted in green
+
 ### Column & Row Resizing
 
 - Drag the right edge of column headers to resize columns
