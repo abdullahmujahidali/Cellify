@@ -1,9 +1,7 @@
 import { Cell } from './Cell.js';
 import type {
   CellValue,
-  CellAddress,
   MergeRange,
-  CellStorage,
 } from '../types/cell.types.js';
 import { cellKey, parseKey, a1ToAddress } from '../types/cell.types.js';
 import type { CellStyle } from '../types/style.types.js';
