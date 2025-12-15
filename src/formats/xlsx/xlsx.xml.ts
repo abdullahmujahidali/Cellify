@@ -89,8 +89,9 @@ export function optEl(
  * Convert color string to ARGB format for Excel
  * Excel expects 8-character ARGB (e.g., "FF000000" for black)
  *
- * @param color - Color in various formats (#RGB, #RRGGBB, RRGGBB)
+ * @param color - Color in various formats (#RGB, #RRGGBB, RRGGBB, AARRGGBB)
  * @returns 8-character ARGB string
+ * @throws Error if color format is invalid
  */
 export function toArgbColor(color: string): string {
   // Remove # prefix if present
@@ -104,6 +105,8 @@ export function toArgbColor(color: string): string {
   // Add alpha channel if not present (FF = fully opaque)
   if (hex.length === 6) {
     hex = 'FF' + hex;
+  } else if (hex.length !== 8) {
+    throw new Error(`Invalid color format: "${color}". Expected #RGB, #RRGGBB, or AARRGGBB.`);
   }
 
   return hex.toUpperCase();

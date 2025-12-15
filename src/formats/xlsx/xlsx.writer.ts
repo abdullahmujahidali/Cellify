@@ -123,9 +123,8 @@ export function workbookToXlsx(workbook: Workbook, options: XlsxExportOptions = 
  */
 export function workbookToXlsxBlob(workbook: Workbook, options?: XlsxExportOptions): Blob {
   const data = workbookToXlsx(workbook, options);
-  // Create a new ArrayBuffer from the Uint8Array for Blob compatibility
-  const buffer = new ArrayBuffer(data.length);
-  new Uint8Array(buffer).set(data);
+  // Create ArrayBuffer from Uint8Array for Blob compatibility
+  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
   return new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });

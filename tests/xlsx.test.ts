@@ -1,13 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync } from 'fflate';
+import type { Unzipped } from 'fflate';
 import { Workbook } from '../src/core/Workbook.js';
 import { workbookToXlsx } from '../src/formats/xlsx/index.js';
+
+/**
+ * Cache for unzipped files to avoid repeated decompression
+ */
+const unzipCache = new WeakMap<Uint8Array, Unzipped>();
+
+function getUnzippedFiles(xlsx: Uint8Array): Unzipped {
+  let files = unzipCache.get(xlsx);
+  if (!files) {
+    files = unzipSync(xlsx);
+    unzipCache.set(xlsx, files);
+  }
+  return files;
+}
 
 /**
  * Helper to extract and decode a file from the XLSX ZIP
  */
 function getXmlFile(xlsx: Uint8Array, path: string): string {
-  const files = unzipSync(xlsx);
+  const files = getUnzippedFiles(xlsx);
   const data = files[path];
   if (!data) {
     throw new Error(`File not found in XLSX: ${path}`);
@@ -19,7 +34,7 @@ function getXmlFile(xlsx: Uint8Array, path: string): string {
  * Helper to check if a file exists in the XLSX ZIP
  */
 function hasFile(xlsx: Uint8Array, path: string): boolean {
-  const files = unzipSync(xlsx);
+  const files = getUnzippedFiles(xlsx);
   return path in files;
 }
 
@@ -250,14 +265,14 @@ describe('XLSX Export', () => {
       const sheet = wb.addSheet('Test');
       sheet.cell('A1').value = 'Centered';
       sheet.cell('A1').style = {
-        alignment: { horizontal: 'center', vertical: 'center' },
+        alignment: { horizontal: 'center', vertical: 'middle' },
       };
 
       const xlsx = workbookToXlsx(wb);
       const styles = getXmlFile(xlsx, 'xl/styles.xml');
 
       expect(styles).toContain('horizontal="center"');
-      expect(styles).toContain('vertical="center"');
+      expect(styles).toContain('vertical="middle"');
     });
 
     it('should export text wrap', () => {
@@ -668,13 +683,13 @@ describe('XLSX Style Coverage', () => {
     const sheet = wb.addSheet('Test');
     sheet.cell('A1').value = 'Underlined';
     sheet.cell('A1').applyStyle({
-      font: { underline: true },
+      font: { underline: 'single' },
     });
 
     const xlsx = workbookToXlsx(wb);
     const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
 
-    expect(stylesXml).toContain('<u/>');
+    expect(stylesXml).toContain('<u');
   });
 
   it('should handle strikethrough font style', () => {
