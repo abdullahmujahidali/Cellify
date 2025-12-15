@@ -51,7 +51,7 @@ Use template string concatenation:
 
 ### 4. Module Structure
 
-```
+```text
 src/formats/xlsx/
 ├── index.ts           # Public exports
 ├── xlsx.writer.ts     # Export: workbookToXlsx()
