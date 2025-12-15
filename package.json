@@ -1,0 +1,57 @@
+{
+  "name": "cellify",
+  "version": "0.1.0",
+  "description": "A lightweight, affordable spreadsheet library for building Excel-like experiences",
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm run test"
+  },
+  "keywords": [
+    "excel",
+    "spreadsheet",
+    "xlsx",
+    "csv",
+    "workbook",
+    "cells",
+    "grid"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "fflate": "^0.8.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
