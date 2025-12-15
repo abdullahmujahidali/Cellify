@@ -322,6 +322,7 @@
       border-collapse: collapse;
       width: 100%;
       font-size: 13px;
+      table-layout: fixed;
     }
 
     th, td {
@@ -332,7 +333,9 @@
       word-wrap: break-word;
       overflow-wrap: break-word;
       white-space: normal;
-      min-width: 100px;
+      min-width: 60px;
+      overflow: hidden;
+      position: relative;
     }
 
     th {
@@ -343,13 +346,48 @@
       top: 0;
       white-space: nowrap;
       vertical-align: middle;
-      min-width: auto;
+      min-width: 60px;
+      user-select: none;
+    }
+
+    /* Column resize handle */
+    th .resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    th .resize-handle:hover,
+    th .resize-handle.resizing {
+      background: var(--primary);
     }
 
     th:first-child {
       background: var(--gray-900);
-      min-width: 40px;
-      width: 40px;
+      min-width: 50px;
+      width: 50px;
+    }
+
+    /* Row resize handle */
+    tbody th .row-resize-handle {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 5px;
+      cursor: row-resize;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    tbody th .row-resize-handle:hover,
+    tbody th .row-resize-handle.resizing {
+      background: var(--primary);
     }
 
     tbody tr:nth-child(even) {
@@ -360,14 +398,31 @@
       background: var(--primary-light);
     }
 
-    tbody td:first-child {
+    tbody td:first-child,
+    tbody th:first-child {
       background: var(--gray-100);
       font-weight: 500;
       color: var(--gray-700);
       text-align: center;
       vertical-align: middle;
-      min-width: 40px;
-      width: 40px;
+      min-width: 50px;
+      width: 50px;
+    }
+
+    /* Resizing state */
+    body.col-resizing {
+      cursor: col-resize !important;
+      user-select: none;
+    }
+
+    body.row-resizing {
+      cursor: row-resize !important;
+      user-select: none;
+    }
+
+    body.col-resizing *,
+    body.row-resizing * {
+      cursor: inherit !important;
     }
 
     /* Stats */
@@ -1078,17 +1133,21 @@
         }
       }
 
-      let html = '<table><thead><tr><th></th>';
-
-      // Column headers
+      let html = '<table id="previewTable"><colgroup><col style="width:50px">';
       for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
-        html += `<th>${columnLetter(c)}</th>`;
+        html += `<col style="width:120px" data-col="${c}">`;
+      }
+      html += '</colgroup><thead><tr><th></th>';
+
+      // Column headers with resize handles
+      for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
+        html += `<th data-col="${c}">${columnLetter(c)}<span class="resize-handle" data-col="${c}"></span></th>`;
       }
       html += '</tr></thead><tbody>';
 
-      // Rows
+      // Rows with resize handles on row headers
       for (let r = dims.startRow; r < dims.startRow + rowsToShow; r++) {
-        html += `<tr><th>${r + 1}</th>`;
+        html += `<tr data-row="${r}"><th>${r + 1}<span class="row-resize-handle" data-row="${r}"></span></th>`;
         for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
           const cellKey = `${r},${c}`;
 
@@ -1135,6 +1194,81 @@
       }
 
       document.getElementById('preview').innerHTML = html;
+      initResizeHandlers();
+    }
+
+    function initResizeHandlers() {
+      const preview = document.getElementById('preview');
+      const table = document.getElementById('previewTable');
+      if (!table) return;
+
+      let isResizing = false;
+      let currentCol = null;
+      let currentRow = null;
+      let startX = 0;
+      let startY = 0;
+      let startWidth = 0;
+      let startHeight = 0;
+
+      preview.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('resize-handle')) {
+          isResizing = true;
+          currentCol = e.target.dataset.col;
+          startX = e.pageX;
+          const colEl = table.querySelector(`colgroup col[data-col="${currentCol}"]`);
+          startWidth = colEl ? parseInt(colEl.style.width) || 120 : 120;
+          e.target.classList.add('resizing');
+          document.body.classList.add('col-resizing');
+          e.preventDefault();
+        }
+      });
+
+      preview.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('row-resize-handle')) {
+          isResizing = true;
+          currentRow = e.target.dataset.row;
+          startY = e.pageY;
+          const rowEl = table.querySelector(`tr[data-row="${currentRow}"]`);
+          startHeight = rowEl ? rowEl.offsetHeight : 30;
+          e.target.classList.add('resizing');
+          document.body.classList.add('row-resizing');
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        if (currentCol !== null) {
+          const diff = e.pageX - startX;
+          const newWidth = Math.max(60, startWidth + diff);
+          const colEl = table.querySelector(`colgroup col[data-col="${currentCol}"]`);
+          if (colEl) {
+            colEl.style.width = newWidth + 'px';
+          }
+        }
+
+        if (currentRow !== null) {
+          const diff = e.pageY - startY;
+          const newHeight = Math.max(25, startHeight + diff);
+          const rowEl = table.querySelector(`tr[data-row="${currentRow}"]`);
+          if (rowEl) {
+            rowEl.style.height = newHeight + 'px';
+          }
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          document.body.classList.remove('col-resizing', 'row-resizing');
+          document.querySelectorAll('.resize-handle.resizing, .row-resize-handle.resizing').forEach(el => {
+            el.classList.remove('resizing');
+          });
+          currentCol = null;
+          currentRow = null;
+        }
+      });
     }
 
     function columnLetter(index) {
