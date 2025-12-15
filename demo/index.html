@@ -1139,6 +1139,7 @@
 
         window.currentWorkbook = result.workbook;
         window.currentSheetIndex = 0;
+        undoStack.length = 0;
 
         displayImportResult(result);
         log(`Successfully imported ${file.name}`, 'success');
@@ -1222,6 +1223,9 @@
     function selectSheet(index) {
       window.currentSheetIndex = index;
       const sheet = window.currentWorkbook.sheets[index];
+
+      // Clear undo stack when switching sheets
+      undoStack.length = 0;
 
       // Update tabs
       document.querySelectorAll('.sheet-tab').forEach((tab, i) => {
@@ -1438,6 +1442,10 @@
     let selectedCol = null;
     let isEditing = false;
 
+    // Undo stack for cell edits: [{row, col, oldValue, newValue}, ...]
+    const undoStack = [];
+    const MAX_UNDO_STACK = 50;
+
     function initCellEditHandlers() {
       const preview = document.getElementById('preview');
       const table = document.getElementById('previewTable');
@@ -1542,6 +1550,8 @@
       // Create input
       const input = document.createElement('input');
       input.type = 'text';
+      input.autocomplete = 'off';
+      input.setAttribute('data-form-type', 'other');  // Hint to password managers to ignore
       input.value = editValue;
       td.innerHTML = '';
       td.appendChild(input);
@@ -1606,6 +1616,12 @@
         }
       }
 
+      // Push to undo stack
+      undoStack.push({ row, col, oldValue, newValue: parsed.value, wasFormula: parsed.isFormula });
+      if (undoStack.length > MAX_UNDO_STACK) {
+        undoStack.shift(); // Remove oldest entry
+      }
+
       // Update display
       isEditing = false;
       td.classList.remove('editing');
@@ -1652,6 +1668,47 @@
       }
 
       log(`Edit cancelled for cell ${columnLetter(col)}${row + 1}`, 'info');
+    }
+
+    function undoLastEdit() {
+      if (undoStack.length === 0) {
+        log('Nothing to undo', 'info');
+        return;
+      }
+
+      const action = undoStack.pop();
+      const { row, col, oldValue } = action;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.cell(row, col);
+
+      if (oldValue !== undefined && oldValue !== null) {
+        // Check if old value was a formula
+        if (cell.formula) {
+          cell.clearFormula();
+        }
+        cell.value = oldValue;
+      } else {
+        cell.clear();
+      }
+
+      // Update the display
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (td) {
+        let displayValue = '';
+        if (oldValue instanceof Date) {
+          displayValue = oldValue.toLocaleDateString();
+        } else if (oldValue !== undefined && oldValue !== null) {
+          displayValue = String(oldValue);
+        }
+        td.textContent = displayValue;
+      }
+
+      // Select the cell that was undone
+      selectCell(row, col);
+
+      const displayOld = oldValue instanceof Date ? oldValue.toLocaleDateString() : oldValue;
+      log(`Undo: Cell ${columnLetter(col)}${row + 1} restored to "${displayOld}"`, 'info');
     }
 
     function parseInputValue(str) {
@@ -1705,6 +1762,13 @@
 
       if (isEditing) {
         // These are handled by the input's own keydown handler
+        return;
+      }
+
+      // Ctrl+Z / Cmd+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoLastEdit();
         return;
       }
 

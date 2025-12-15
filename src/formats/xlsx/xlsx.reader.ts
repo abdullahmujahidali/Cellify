@@ -203,7 +203,7 @@ export function xlsxToWorkbook(
       for (const commentPath of commentPaths) {
         const commentsXml = readFile(commentPath);
         if (commentsXml) {
-          parseComments(commentsXml, sheet, ctx);
+          parseComments(commentsXml, sheet);
           break;
         }
       }
@@ -558,16 +558,12 @@ function parseWorksheet(xml: string, sheet: Sheet, ctx: XlsxParseContext): void 
 /**
  * Parse comments XML and apply to sheet
  */
-function parseComments(xml: string, sheet: Sheet, ctx: XlsxParseContext): void {
+function parseComments(xml: string, sheet: Sheet): void {
   const authors: string[] = [];
   const authorElements = parseElements(xml, 'author');
   for (const authorEl of authorElements) {
-    const authorMatch = authorEl.match(/>([^<]*)</);
-    if (authorMatch) {
-      authors.push(authorMatch[1]);
-    } else {
-      authors.push('');
-    }
+    // Author element contains text directly
+    authors.push(unescapeXml(authorEl.inner) || '');
   }
 
   const commentElements = parseElements(xml, 'comment');
@@ -577,7 +573,8 @@ function parseComments(xml: string, sheet: Sheet, ctx: XlsxParseContext): void {
 
     if (!ref) continue;
 
-    const textContent = getTextContent(commentEl, 't');
+    const tElements = parseElements(commentEl.inner, 't');
+    const textContent = unescapeXml(tElements.map(t => t.inner).join(''));
     if (!textContent) continue;
 
     const { row, col } = a1ToAddress(ref);

@@ -543,7 +543,7 @@ export function getCellsWithComments(sheet: Sheet): Cell[] {
 /**
  * Generate xl/comments{n}.xml for a sheet
  */
-export function generateComments(sheet: Sheet, sheetIndex: number): string {
+export function generateComments(sheet: Sheet, _sheetIndex: number): string {
   const parts: string[] = [XML_DECLARATION];
   const cells = getCellsWithComments(sheet);
 
@@ -563,7 +563,7 @@ export function generateComments(sheet: Sheet, sheetIndex: number): string {
   const authorIndex = new Map<string, number>();
   authors.forEach((author, i) => authorIndex.set(author, i));
 
-  parts.push(`<comments xmlns="${NS.main}">`);
+  parts.push(`<comments xmlns="${NS.spreadsheetml}">`);
 
   // Authors section
   parts.push('<authors>');
