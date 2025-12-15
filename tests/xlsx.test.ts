@@ -556,4 +556,401 @@ describe('XLSX Date Conversion', () => {
     // Exact integer for midnight UTC date
     expect(sheetXml).toContain('<v>46006</v>');
   });
+
+  it('should handle dates before leap year bug cutoff', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    // February 28, 1900 should be serial 59 (before the fake Feb 29)
+    sheet.cell('A1').value = new Date('1900-02-28T00:00:00.000Z');
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('<v>59</v>');
+  });
+});
+
+describe('XLSX XML Utilities', () => {
+  it('should escape XML special characters in sheet names', () => {
+    const wb = new Workbook();
+    // Sheet name with special chars will be escaped in workbook.xml
+    wb.addSheet('Test & <Sheet>');
+
+    const xlsx = workbookToXlsx(wb);
+    const workbookXml = getXmlFile(xlsx, 'xl/workbook.xml');
+
+    expect(workbookXml).toContain('&amp;');
+    expect(workbookXml).toContain('&lt;');
+    expect(workbookXml).toContain('&gt;');
+  });
+
+  it('should escape special characters in shared strings', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    // String with special chars goes to shared strings
+    sheet.cell('A1').value = 'Test & <value>';
+
+    const xlsx = workbookToXlsx(wb);
+    const stringsXml = getXmlFile(xlsx, 'xl/sharedStrings.xml');
+
+    // Should be escaped in shared strings table
+    expect(stringsXml).toContain('&amp;');
+    expect(stringsXml).toContain('&lt;');
+    expect(stringsXml).toContain('&gt;');
+  });
+
+  it('should sanitize control characters from shared strings', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    // String with control characters (NULL, BEL)
+    sheet.cell('A1').value = 'Clean\x00text\x07here';
+
+    const xlsx = workbookToXlsx(wb);
+    const stringsXml = getXmlFile(xlsx, 'xl/sharedStrings.xml');
+
+    // Control chars should be removed in shared strings
+    expect(stringsXml).not.toContain('\x00');
+    expect(stringsXml).not.toContain('\x07');
+    expect(stringsXml).toContain('Cleantexthere');
+  });
+
+  it('should handle Excel error values', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = '#DIV/0!';
+    sheet.cell('A2').value = '#VALUE!';
+    sheet.cell('A3').value = '#REF!';
+    sheet.cell('A4').value = '#NAME?';
+    sheet.cell('A5').value = '#NUM!';
+    sheet.cell('A6').value = '#N/A';
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    // Errors should be marked with t="e" (error type)
+    expect(sheetXml).toContain('t="e"');
+    expect(sheetXml).toContain('#DIV/0!');
+  });
+});
+
+describe('XLSX Style Coverage', () => {
+  it('should handle shorthand colors (#RGB)', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Red';
+    sheet.cell('A1').applyStyle({
+      font: { color: '#F00' }, // Shorthand red
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    // Should expand to FFFF0000
+    expect(stylesXml).toContain('FF0000');
+  });
+
+  it('should handle italic font style', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Italic';
+    sheet.cell('A1').applyStyle({
+      font: { italic: true },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<i/>');
+  });
+
+  it('should handle underline font style', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Underlined';
+    sheet.cell('A1').applyStyle({
+      font: { underline: true },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<u/>');
+  });
+
+  it('should handle strikethrough font style', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Strikethrough';
+    sheet.cell('A1').applyStyle({
+      font: { strikethrough: true },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<strike/>');
+  });
+
+  it('should handle text wrap alignment', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Long text that wraps';
+    sheet.cell('A1').applyStyle({
+      alignment: { wrapText: true },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('wrapText="1"');
+  });
+
+  it('should handle text rotation', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Rotated';
+    sheet.cell('A1').applyStyle({
+      alignment: { textRotation: 45 },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('textRotation="45"');
+  });
+
+  it('should handle indent level', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Indented';
+    sheet.cell('A1').applyStyle({
+      alignment: { indent: 2 },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('indent="2"');
+  });
+
+  it('should handle all border sides', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Bordered';
+    sheet.cell('A1').applyStyle({
+      borders: {
+        top: { style: 'thin', color: '#000000' },
+        bottom: { style: 'thin', color: '#000000' },
+        left: { style: 'thin', color: '#000000' },
+        right: { style: 'thin', color: '#000000' },
+      },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<left');
+    expect(stylesXml).toContain('<right');
+    expect(stylesXml).toContain('<top');
+    expect(stylesXml).toContain('<bottom');
+  });
+
+  it('should handle pattern fills with background color', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Pattern fill';
+    sheet.cell('A1').applyStyle({
+      fill: {
+        type: 'pattern',
+        pattern: 'solid',
+        foregroundColor: '#FFFF00',
+        backgroundColor: '#000000',
+      },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<patternFill');
+    expect(stylesXml).toContain('FFFFFF00'); // Yellow with alpha
+  });
+
+  it('should handle custom number formats', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 1234.567;
+    sheet.cell('A1').applyStyle({
+      // Use truly custom format not in builtin list
+      numberFormat: { formatCode: '$#,##0.000_);[Red]($#,##0.000)' },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    expect(stylesXml).toContain('<numFmt');
+    expect(stylesXml).toContain('$#,##0.000');
+  });
+
+  it('should handle builtin number format codes', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 0.5;
+    sheet.cell('A1').applyStyle({
+      numberFormat: { formatCode: '0%' }, // Built-in format code
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const stylesXml = getXmlFile(xlsx, 'xl/styles.xml');
+
+    // Built-in format (id 9) should use numFmtId directly
+    expect(stylesXml).toContain('numFmtId="9"');
+  });
+});
+
+describe('XLSX Parts Coverage', () => {
+  it('should handle hidden rows', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.hideRow(0); // Hide row 1
+    sheet.cell('A1').value = 'Hidden row';
+    sheet.cell('A2').value = 'Visible row';
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('hidden="1"');
+  });
+
+  it('should handle sheet views with grid lines disabled', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'No grid';
+    sheet.view.showGridLines = false;
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('showGridLines="0"');
+  });
+
+  it('should handle sheet views with zoom scale', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 'Zoomed';
+    sheet.view.zoomScale = 150;
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('zoomScale="150"');
+  });
+
+  it('should handle frozen columns only', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.freeze(0, 2); // Freeze 2 columns, no rows
+    sheet.cell('A1').value = 'Frozen columns';
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('xSplit="2"');
+    expect(sheetXml).toContain('ySplit="0"');
+    expect(sheetXml).toContain('activePane="topRight"');
+  });
+
+  it('should export document properties when enabled', () => {
+    const wb = new Workbook();
+    wb.properties.title = 'My Workbook';
+    wb.properties.author = 'Test Author';
+    wb.properties.lastModifiedBy = 'Editor';
+    wb.properties.created = new Date('2024-01-01T00:00:00.000Z');
+    wb.properties.modified = new Date('2024-06-01T00:00:00.000Z');
+    wb.addSheet('Test').cell('A1').value = 'Test';
+
+    const xlsx = workbookToXlsx(wb, { includeProperties: true });
+    const coreXml = getXmlFile(xlsx, 'docProps/core.xml');
+    const appXml = getXmlFile(xlsx, 'docProps/app.xml');
+
+    expect(coreXml).toContain('<dc:title>My Workbook</dc:title>');
+    expect(coreXml).toContain('<dc:creator>Test Author</dc:creator>');
+    expect(coreXml).toContain('<cp:lastModifiedBy>Editor</cp:lastModifiedBy>');
+    expect(coreXml).toContain('<dcterms:created');
+    expect(coreXml).toContain('<dcterms:modified');
+    expect(appXml).toContain('<Application>');
+  });
+
+  it('should handle formula cells', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = 10;
+    sheet.cell('A2').value = 20;
+    sheet.cell('A3').setFormula('SUM(A1:A2)');
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    expect(sheetXml).toContain('<f>SUM(A1:A2)</f>');
+  });
+
+  it('should handle empty cells with borders', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    // Empty cell with style
+    sheet.cell('A1').applyStyle({
+      borders: {
+        left: { style: 'thin', color: '#000000' },
+      },
+    });
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    // Empty cell should still be exported with style
+    expect(sheetXml).toContain('<c r="A1"');
+    expect(sheetXml).toContain('s="');
+  });
+});
+
+describe('XLSX Writer Edge Cases', () => {
+  it('should handle workbook with empty sheet names', () => {
+    const wb = new Workbook();
+    wb.addSheet('Sheet 1'); // Name with space
+    wb.addSheet('Sheet&2'); // Name with ampersand
+
+    const xlsx = workbookToXlsx(wb);
+    const workbookXml = getXmlFile(xlsx, 'xl/workbook.xml');
+
+    expect(workbookXml).toContain('Sheet 1');
+    expect(workbookXml).toContain('Sheet&amp;2');
+  });
+
+  it('should handle compression level option', () => {
+    const wb = new Workbook();
+    wb.addSheet('Test').cell('A1').value = 'Test';
+
+    // Different compression levels should produce valid output
+    const xlsx0 = workbookToXlsx(wb, { compressionLevel: 0 });
+    const xlsx9 = workbookToXlsx(wb, { compressionLevel: 9 });
+
+    // Both should be valid ZIPs
+    expect(xlsx0.length).toBeGreaterThan(0);
+    expect(xlsx9.length).toBeGreaterThan(0);
+    // Higher compression should be smaller (usually)
+    expect(xlsx9.length).toBeLessThanOrEqual(xlsx0.length);
+  });
+
+  it('should handle Infinity values', () => {
+    const wb = new Workbook();
+    const sheet = wb.addSheet('Test');
+    sheet.cell('A1').value = Infinity;
+    sheet.cell('A2').value = -Infinity;
+
+    const xlsx = workbookToXlsx(wb);
+    const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+    // Should be exported as #NUM! errors
+    expect(sheetXml).toContain('t="e"');
+    expect(sheetXml).toContain('#NUM!');
+  });
 });
