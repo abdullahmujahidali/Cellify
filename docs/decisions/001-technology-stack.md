@@ -1,6 +1,6 @@
 # ADR-001: Technology Stack
 
-**Date:** 2024-12-15
+**Date:** 2025-10-02
 **Status:** Accepted
 
 ## Context

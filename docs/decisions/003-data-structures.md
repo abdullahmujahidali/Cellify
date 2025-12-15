@@ -1,6 +1,6 @@
 # ADR-003: Core Data Structures
 
-**Date:** 2024-12-15
+**Date:** 2025-12-05
 **Status:** Accepted
 
 ## Context

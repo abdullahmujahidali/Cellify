@@ -13,6 +13,7 @@ An ADR is a document that captures an important architectural decision along wit
 | [001](./001-technology-stack.md) | Technology Stack | Accepted |
 | [002](./002-minimal-dependencies.md) | Minimal Dependencies Philosophy | Accepted |
 | [003](./003-data-structures.md) | Core Data Structures | Accepted |
+| [004](./004-accessibility.md) | Accessibility Architecture | Accepted |
 
 ## Template
 

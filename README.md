@@ -1,5 +1,8 @@
 # Cellify
 
+[![CI](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml/badge.svg)](https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A lightweight, affordable spreadsheet library for building Excel-like experiences.
 
 > **Status:** Alpha - Core data structures are implemented. Excel import/export coming soon.
@@ -12,6 +15,7 @@ Most spreadsheet libraries are either expensive, bloated, or lack essential feat
 - **Full-featured** - Merging, styling, formulas, validation
 - **Type-safe** - Built with TypeScript from the ground up
 - **Universal** - Works in Node.js and browsers
+- **Accessible** - Built-in a11y helpers for screen readers
 
 ## Installation
 
@@ -69,6 +73,7 @@ sheet.freeze(1);
 - [x] Hyperlinks and comments
 - [x] Named ranges
 - [x] Sheet protection
+- [x] Accessibility helpers (ARIA attributes, screen reader announcements)
 
 ### Planned
 
@@ -76,6 +81,33 @@ sheet.freeze(1);
 - [ ] CSV import/export
 - [ ] Formula evaluation engine
 - [ ] Streaming for large files
+
+## Accessibility
+
+Cellify provides built-in helpers for creating accessible spreadsheet UIs:
+
+```typescript
+import {
+  getCellAccessibility,
+  getAriaAttributes,
+  announceNavigation,
+} from 'cellify';
+
+// Generate ARIA attributes for a cell
+const a11y = getCellAccessibility(cell, sheet, {
+  headerRows: 1,
+  headerCols: 1,
+});
+
+const ariaProps = getAriaAttributes(a11y);
+// Returns: { role: 'gridcell', 'aria-colindex': 2, 'aria-rowindex': 3, ... }
+
+// Announce navigation for screen readers
+const announcement = announceNavigation(cell);
+// Returns: { message: 'Cell B3, row 3, column 2, 1500', type: 'navigation', priority: 'polite' }
+```
+
+See [ADR-004: Accessibility](./docs/decisions/004-accessibility.md) for design details.
 
 ## Documentation
 

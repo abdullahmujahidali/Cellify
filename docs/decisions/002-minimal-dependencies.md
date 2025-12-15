@@ -1,6 +1,6 @@
 # ADR-002: Minimal Dependencies Philosophy
 
-**Date:** 2024-12-15
+**Date:** 2025-11-25
 **Status:** Accepted
 
 ## Context
