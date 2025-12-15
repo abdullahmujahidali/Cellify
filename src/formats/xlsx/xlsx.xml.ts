@@ -22,6 +22,20 @@ export function escapeXml(str: string): string {
 }
 
 /**
+ * Unescape XML entities
+ * @param str - String with XML entities
+ * @returns Unescaped string
+ */
+export function unescapeXml(str: string): string {
+  return str
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&'); // Must be last to avoid double-unescaping
+}
+
+/**
  * Sanitize string for XML 1.0
  * Removes invalid control characters and escapes special characters
  *
