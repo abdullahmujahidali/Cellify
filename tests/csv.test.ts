@@ -120,6 +120,69 @@ describe('CSV Export', () => {
       expect(csv).toBe('2024-06-15');
     });
 
+    it('should handle NaN values', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = NaN;
+
+      const csv = sheetToCsv(sheet);
+      expect(csv).toBe('NaN');
+    });
+
+    it('should handle Infinity values', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = Infinity;
+      sheet.cell('B1').value = -Infinity;
+
+      const csv = sheetToCsv(sheet);
+      expect(csv).toBe('Infinity,-Infinity');
+    });
+
+    it('should export rich text as plain text', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = {
+        richText: [
+          { text: 'Hello ' },
+          { text: 'World', font: { bold: true } },
+        ],
+      };
+
+      const csv = sheetToCsv(sheet);
+      expect(csv).toBe('Hello World');
+    });
+
+    it('should format date in locale format', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = new Date('2024-06-15');
+
+      const csv = sheetToCsv(sheet, { dateFormat: 'locale' });
+      expect(csv.length).toBeGreaterThan(0);
+      expect(csv).not.toBe('2024-06-15'); // Should differ from ISO
+    });
+
+    it('should format date with custom format', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = new Date('2024-06-15T10:30:45');
+
+      const csv = sheetToCsv(sheet, { dateFormat: 'dd/mm/yyyy' });
+      expect(csv).toBe('15/06/2024');
+    });
+
+    it('should format date with time in custom format', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = new Date('2024-06-15T10:30:45');
+
+      const csv = sheetToCsv(sheet, { dateFormat: 'yyyy-mm-dd HH:MM:SS' });
+      expect(csv).toBe('2024-06-15 10:30:45');
+    });
+
+    it('should escape fields with carriage return', () => {
+      const sheet = new Sheet('Test');
+      sheet.cell('A1').value = 'Line1\rLine2';
+
+      const csv = sheetToCsv(sheet);
+      expect(csv).toBe('"Line1\rLine2"');
+    });
+
     it('should export specific range', () => {
       const sheet = new Sheet('Test');
       sheet.cell('A1').value = 'A1';
@@ -304,6 +367,170 @@ describe('CSV Import', () => {
 
       expect(sheet.cell('A1').value).toBe('A');
       expect(sheet.cell('B1').value).toBe('B');
+      expect(sheet.cell('C1').value).toBe('C');
+    });
+
+    it('should auto-detect pipe delimiter', () => {
+      const csv = 'A|B|C\n1|2|3';
+      const workbook = csvToWorkbook(csv);
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('A');
+      expect(sheet.cell('B1').value).toBe('B');
+      expect(sheet.cell('C1').value).toBe('C');
+    });
+
+    it('should skip comment lines', () => {
+      const csv = '# This is a comment\nA,B\n1,2';
+      const workbook = csvToWorkbook(csv, { commentChar: '#' });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('A');
+      expect(sheet.cell('B1').value).toBe('B');
+      expect(sheet.cell('A2').value).toBe(1);
+    });
+
+    it('should detect ISO dates', () => {
+      const csv = '2024-06-15,2024-12-31';
+      const workbook = csvToWorkbook(csv, { detectDates: true });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBeInstanceOf(Date);
+      expect(sheet.cell('B1').value).toBeInstanceOf(Date);
+    });
+
+    it('should not detect dates when disabled', () => {
+      const csv = '2024-06-15';
+      const workbook = csvToWorkbook(csv, { detectDates: false });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('2024-06-15');
+    });
+
+    it('should detect dates with custom format', () => {
+      const csv = '15/06/2024';
+      const workbook = csvToWorkbook(csv, {
+        detectDates: true,
+        dateFormats: ['dd/mm/yyyy'],
+      });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBeInstanceOf(Date);
+      const date = sheet.cell('A1').value as Date;
+      expect(date.getDate()).toBe(15);
+      expect(date.getMonth()).toBe(5); // June (0-indexed)
+      expect(date.getFullYear()).toBe(2024);
+    });
+
+    it('should handle yy year format', () => {
+      const csv = '15/06/24';
+      const workbook = csvToWorkbook(csv, {
+        detectDates: true,
+        dateFormats: ['dd/mm/yy'],
+      });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBeInstanceOf(Date);
+      const date = sheet.cell('A1').value as Date;
+      expect(date.getFullYear()).toBe(2024);
+    });
+
+    it('should handle yy year format for older dates', () => {
+      const csv = '15/06/75';
+      const workbook = csvToWorkbook(csv, {
+        detectDates: true,
+        dateFormats: ['dd/mm/yy'],
+      });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBeInstanceOf(Date);
+      const date = sheet.cell('A1').value as Date;
+      expect(date.getFullYear()).toBe(1975);
+    });
+
+    it('should not detect numbers when disabled', () => {
+      const csv = '42,3.14';
+      const workbook = csvToWorkbook(csv, { detectNumbers: false });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('42');
+      expect(sheet.cell('B1').value).toBe('3.14');
+    });
+
+    it('should handle currency symbols', () => {
+      const csv = '$100,€50,£75';
+      const workbook = csvToWorkbook(csv);
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe(100);
+      expect(sheet.cell('B1').value).toBe(50);
+      expect(sheet.cell('C1').value).toBe(75);
+    });
+
+    it('should report progress during import', () => {
+      const csv = 'A\nB\nC\nD\nE';
+      const progressCalls: Array<{ current: number; total: number | undefined }> = [];
+
+      csvToWorkbook(csv, {
+        onProgress: (current, total) => {
+          progressCalls.push({ current, total });
+        },
+      });
+
+      expect(progressCalls.length).toBe(5);
+      expect(progressCalls[0]).toEqual({ current: 1, total: 5 });
+      expect(progressCalls[4]).toEqual({ current: 5, total: 5 });
+    });
+
+    it('should use explicit delimiter over auto-detection', () => {
+      const csv = 'A;B;C\n1;2;3';
+      const workbook = csvToWorkbook(csv, { delimiter: ',' });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      // With comma as explicit delimiter, semicolons are part of the value
+      expect(sheet.cell('A1').value).toBe('A;B;C');
+    });
+
+    it('should handle invalid date format gracefully', () => {
+      const csv = 'not-a-date';
+      const workbook = csvToWorkbook(csv, {
+        detectDates: true,
+        dateFormats: ['dd/mm/yyyy'],
+      });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('not-a-date');
+    });
+
+    it('should reject invalid date values', () => {
+      const csv = '32/13/2024'; // Invalid day and month
+      const workbook = csvToWorkbook(csv, {
+        detectDates: true,
+        dateFormats: ['dd/mm/yyyy'],
+      });
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      // Should remain as string due to invalid date
+      expect(sheet.cell('A1').value).toBe('32/13/2024');
+    });
+
+    it('should handle strings with letters as non-numbers', () => {
+      const csv = 'abc,123abc,abc123';
+      const workbook = csvToWorkbook(csv);
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('abc');
+      expect(sheet.cell('B1').value).toBe('123abc');
+      expect(sheet.cell('C1').value).toBe('abc123');
+    });
+
+    it('should handle empty string as null', () => {
+      const csv = 'A,,C';
+      const workbook = csvToWorkbook(csv);
+      const sheet = workbook.getSheetByIndex(0)!;
+
+      expect(sheet.cell('A1').value).toBe('A');
+      expect(sheet.cell('B1').value).toBe(null);
       expect(sheet.cell('C1').value).toBe('C');
     });
   });
