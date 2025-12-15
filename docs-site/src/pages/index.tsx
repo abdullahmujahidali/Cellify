@@ -26,7 +26,7 @@ function HomepageHeader() {
           </Link>
           <Link
             className="button button--outline button--lg button--secondary"
-            to="/Cellify/demo/">
+            href="https://abdullahmujahidali.github.io/Cellify/demo/">
             Try Live Demo
           </Link>
         </div>
