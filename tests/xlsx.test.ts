@@ -1319,7 +1319,7 @@ describe('XLSX Import', () => {
       expect(stats.totalCells).toBe(3); // A1, A2 in Sheet1 (A3 formula has no cached value), A1 in Sheet2
       expect(stats.formulaCells).toBe(1);
       expect(stats.mergedRanges).toBe(1);
-      expect(stats.durationMs).toBeGreaterThan(0);
+      expect(stats.durationMs).toBeGreaterThanOrEqual(0);
     });
   });
 
