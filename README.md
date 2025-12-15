@@ -36,6 +36,7 @@
 - **Complete Styling** - Fonts, fills, borders, alignment, number formats
 - **Cell Merging** - With overlap detection and validation
 - **Formulas** - Store and preserve formulas (evaluation coming soon)
+- **Cell Comments** - Add comments with author information
 - **Freeze Panes** - Lock rows/columns for scrolling
 - **Auto Filters** - Enable filtering on data ranges
 - **Type-Safe** - Built with TypeScript from the ground up
@@ -49,6 +50,14 @@ Try the interactive demo to test import/export functionality:
 ```bash
 npm run demo
 ```
+
+The demo includes:
+- **Cell editing** - Double-click or press Enter to edit cells
+- **Right-click context menu** - Copy, cut, paste, formatting, comments
+- **Keyboard shortcuts** - Ctrl+C/X/V, Ctrl+B/I, Ctrl+Z, arrow keys
+- **Column/row selection** - Click headers to select entire columns or rows
+- **Column filters** - Filter data by clicking the filter button in headers
+- **Cell comments** - Add, edit, and delete comments via context menu
 
 ![Cellify Demo](docs/images/demo-screenshot.png)
 
@@ -332,6 +341,28 @@ console.log(formula.formula); // 'B2*C2'
 // Excel will calculate values when the file is opened
 ```
 
+## Cell Comments
+
+```typescript
+// Add a comment to a cell
+sheet.cell('A1').setComment('This needs review', 'John Doe');
+
+// Add comment without author
+sheet.cell('B1').setComment('Important note');
+
+// Access comment
+const cell = sheet.cell('A1');
+if (cell.comment) {
+  console.log(cell.comment.text);   // 'This needs review'
+  console.log(cell.comment.author); // 'John Doe'
+}
+
+// Clear comment
+sheet.cell('A1').clearComment();
+// or
+sheet.cell('A1').comment = undefined;
+```
+
 ## Named Ranges
 
 ```typescript
@@ -417,6 +448,7 @@ const announcement = announceNavigation(cell);
 | `value` | Cell value (string, number, boolean, Date) |
 | `style` | Cell style object |
 | `formula` | Formula object |
+| `comment` | Cell comment with text and author |
 | `address` | A1 notation address |
 | `type` | Value type |
 | `isMerged` | Is part of merge |
@@ -474,7 +506,6 @@ Available border styles: `thin`, `medium`, `thick`, `dashed`, `dotted`, `double`
 - [ ] Formula evaluation engine
 - [ ] Hyperlinks
 - [ ] Data validation (dropdowns, constraints)
-- [ ] Comments/notes
 - [ ] Conditional formatting export
 - [ ] Charts (basic)
 - [ ] Streaming for large files
