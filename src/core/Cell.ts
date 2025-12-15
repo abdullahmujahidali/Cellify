@@ -60,9 +60,13 @@ export class Cell {
   }
 
   /**
-   * Get the cell's value
+   * Get the cell's value (returns formula result if formula exists)
    */
   get value(): CellValue {
+    // If formula has a cached result, return it
+    if (this._formula?.result !== undefined) {
+      return this._formula.result;
+    }
     return this._value;
   }
 
@@ -97,11 +101,13 @@ export class Cell {
   /**
    * Set a formula on the cell
    * @param formulaText - The formula text (with or without leading '=')
+   * @param result - Optional cached result value from Excel
    */
-  setFormula(formulaText: string): this {
+  setFormula(formulaText: string, result?: CellValue): this {
     const text = formulaText.startsWith('=') ? formulaText.slice(1) : formulaText;
     this._formula = {
       formula: text,
+      result: result,
     };
     return this;
   }

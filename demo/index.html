@@ -616,10 +616,15 @@
     td.editing {
       padding: 0;
       overflow: visible;
+      position: relative;
     }
 
     td.editing input {
-      width: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      min-width: 100%;
+      width: auto;
       height: 100%;
       min-height: 32px;
       border: none;
@@ -629,6 +634,7 @@
       background: var(--white);
       outline: 2px solid var(--primary);
       box-sizing: border-box;
+      z-index: 10;
     }
 
     td.modified::after {
@@ -645,6 +651,18 @@
     /* Cursor for editable cells */
     tbody td:not(:first-child) {
       cursor: cell;
+    }
+
+    td.has-comment::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 8px 8px 0;
+      border-color: transparent #F59E0B transparent transparent;
     }
 
     /* Edit hint in info bar */
@@ -699,6 +717,7 @@
         <button class="primary" id="btnStyled">🎨 Styled Spreadsheet</button>
         <button class="primary" id="btnFormula">🔢 With Formulas</button>
         <button class="primary" id="btnMultiSheet">📑 Multi-Sheet</button>
+        <button class="primary" id="btnComments">💬 With Comments</button>
       </div>
     </div>
 
@@ -1015,6 +1034,66 @@
       log('Downloaded multi-sheet.xlsx', 'success');
     }
 
+    function exportCommentsExample() {
+      log('Creating comments example...');
+
+      const workbook = new Workbook();
+      workbook.title = 'Comments Example';
+
+      const sheet = workbook.addSheet('Reviews');
+
+      // Headers
+      const headers = ['Product', 'Rating', 'Reviewer', 'Status'];
+      headers.forEach((header, i) => {
+        const cell = sheet.cell(0, i);
+        cell.value = header;
+        cell.style = {
+          font: { bold: true, color: '#FFFFFF' },
+          fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#059669' },
+          alignment: { horizontal: 'center' },
+        };
+      });
+
+      // Data with comments
+      const reviews = [
+        { product: 'Laptop Pro', rating: 5, reviewer: 'Alice', status: 'Approved', comment: 'Excellent product! Fast shipping and great quality.' },
+        { product: 'Wireless Mouse', rating: 4, reviewer: 'Bob', status: 'Pending', comment: 'Good mouse but battery drains quickly. Needs follow-up.' },
+        { product: 'USB Hub', rating: 3, reviewer: 'Charlie', status: 'Flagged', comment: 'Product received damaged. Customer requesting refund.' },
+      ];
+
+      reviews.forEach((review, i) => {
+        const row = i + 1;
+        sheet.cell(row, 0).value = review.product;
+
+        const ratingCell = sheet.cell(row, 1);
+        ratingCell.value = review.rating;
+        ratingCell.setComment(`Rating: ${review.rating}/5 stars`, review.reviewer);
+
+        sheet.cell(row, 2).value = review.reviewer;
+
+        const statusCell = sheet.cell(row, 3);
+        statusCell.value = review.status;
+        statusCell.setComment(review.comment, 'System');
+
+        if (review.status === 'Approved') {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#D1FAE5' } };
+        } else if (review.status === 'Flagged') {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FEE2E2' } };
+        } else {
+          statusCell.style = { fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FEF3C7' } };
+        }
+      });
+
+      sheet.setColumnWidth(0, 18);
+      sheet.setColumnWidth(1, 10);
+      sheet.setColumnWidth(2, 12);
+      sheet.setColumnWidth(3, 12);
+
+      const blob = workbookToXlsxBlob(workbook);
+      download(blob, 'with-comments.xlsx');
+      log('Downloaded with-comments.xlsx (hover over cells to see comments)', 'success');
+    }
+
     // File import
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -1219,10 +1298,23 @@
             value = value.toLocaleString();
           }
 
-          // Show formula indicator
+          // Build cell style from imported styles
           const formula = cell?.formula;
-          const title = formula ? `Formula: =${escapeHtml(formula.formula)}` : '';
-          let style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
+          const comment = cell?.comment;
+          let titleParts = [];
+          if (formula) titleParts.push(`Formula: =${escapeHtml(formula.formula)}`);
+          if (comment) {
+            const commentText = typeof comment.text === 'string' ? comment.text : comment.text.plainText || '';
+            titleParts.push(`Comment: ${escapeHtml(commentText)}${comment.author ? ` - ${escapeHtml(comment.author)}` : ''}`);
+          }
+          let title = titleParts.join('\n');
+          let style = cellStyleToCss(cell?.style);
+          let cssClass = comment ? 'has-comment' : '';
+
+          // Add formula indicator if no font color is set
+          if (formula && !cell?.style?.font?.color) {
+            style += 'color: #059669; font-style: italic;';
+          }
 
           // Check if this cell starts a merge
           const mergeInfo = mergeStarts.get(cellKey);
@@ -1232,7 +1324,7 @@
             if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
           }
 
-          html += `<td${spanAttrs} data-row="${r}" data-col="${c}" title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
+          html += `<td${spanAttrs} data-row="${r}" data-col="${c}" title="${title}" style="${style}" class="${cssClass}">${escapeHtml(String(value))}</td>`;
         }
         html += '</tr>';
       }
@@ -1453,8 +1545,16 @@
       input.value = editValue;
       td.innerHTML = '';
       td.appendChild(input);
+
+      // Auto-size input based on content
+      const minWidth = td.offsetWidth;
+      const textWidth = getTextWidth(editValue, getComputedStyle(input).font);
+      input.style.width = Math.max(minWidth, textWidth + 30) + 'px';
+
       input.focus();
       input.select();
+      // Scroll to beginning of input to show full text
+      input.scrollLeft = 0;
 
       // Input event handlers
       input.addEventListener('blur', () => {
@@ -1684,6 +1784,104 @@
                 .replace(/"/g, '&quot;');
     }
 
+    // Measure text width using canvas
+    const textWidthCanvas = document.createElement('canvas');
+    const textWidthCtx = textWidthCanvas.getContext('2d');
+    function getTextWidth(text, font) {
+      textWidthCtx.font = font;
+      return textWidthCtx.measureText(text).width;
+    }
+
+    // Convert CellStyle to inline CSS
+    function cellStyleToCss(style) {
+      if (!style) return '';
+
+      let css = '';
+
+      // Font styles
+      if (style.font) {
+        const font = style.font;
+        if (font.bold) css += 'font-weight: bold;';
+        if (font.italic) css += 'font-style: italic;';
+        if (font.underline) css += 'text-decoration: underline;';
+        if (font.strikethrough) css += 'text-decoration: line-through;';
+        if (font.color) css += `color: ${font.color};`;
+        if (font.size) css += `font-size: ${font.size}pt;`;
+        if (font.name) css += `font-family: "${font.name}", sans-serif;`;
+      }
+
+      if (style.fill) {
+        const fill = style.fill;
+        if (fill.type === 'pattern' && fill.pattern === 'solid' && fill.foregroundColor) {
+          css += `background-color: ${fill.foregroundColor};`;
+        }
+      }
+
+      // Alignment
+      if (style.alignment) {
+        const align = style.alignment;
+        if (align.horizontal) {
+          css += `text-align: ${align.horizontal};`;
+        }
+        if (align.vertical) {
+          const vAlign = align.vertical === 'middle' ? 'middle' :
+                        align.vertical === 'top' ? 'top' : 'bottom';
+          css += `vertical-align: ${vAlign};`;
+        }
+        if (align.wrapText) {
+          css += 'white-space: pre-wrap;';
+        }
+        if (align.textRotation) {
+          css += `writing-mode: vertical-rl; transform: rotate(${align.textRotation}deg);`;
+        }
+      }
+
+      // Borders
+      if (style.borders) {
+        const borders = style.borders;
+        if (borders.top) {
+          css += `border-top: ${borderStyleToCss(borders.top)};`;
+        }
+        if (borders.right) {
+          css += `border-right: ${borderStyleToCss(borders.right)};`;
+        }
+        if (borders.bottom) {
+          css += `border-bottom: ${borderStyleToCss(borders.bottom)};`;
+        }
+        if (borders.left) {
+          css += `border-left: ${borderStyleToCss(borders.left)};`;
+        }
+      }
+
+      return css;
+    }
+
+    // Convert border style to CSS
+    function borderStyleToCss(border) {
+      if (!border) return 'none';
+
+      const styleMap = {
+        'thin': '1px solid',
+        'medium': '2px solid',
+        'thick': '3px solid',
+        'dashed': '1px dashed',
+        'dotted': '1px dotted',
+        'double': '3px double',
+        'hair': '1px solid',
+        'dashDot': '1px dashed',
+        'dashDotDot': '1px dashed',
+        'mediumDashed': '2px dashed',
+        'mediumDashDot': '2px dashed',
+        'mediumDashDotDot': '2px dashed',
+        'slantDashDot': '2px dashed'
+      };
+
+      const cssStyle = styleMap[border.style] || '1px solid';
+      const color = border.color || '#000000';
+
+      return `${cssStyle} ${color}`;
+    }
+
     // Re-export functions
     function reExportXlsx() {
       if (!window.currentWorkbook) return;
@@ -1710,6 +1908,7 @@
     document.getElementById('btnStyled').addEventListener('click', exportStyledExample);
     document.getElementById('btnFormula').addEventListener('click', exportFormulaExample);
     document.getElementById('btnMultiSheet').addEventListener('click', exportMultiSheetExample);
+    document.getElementById('btnComments').addEventListener('click', exportCommentsExample);
     document.getElementById('btnReExportXlsx').addEventListener('click', reExportXlsx);
     document.getElementById('btnReExportCsv').addEventListener('click', reExportCsv);
   </script>

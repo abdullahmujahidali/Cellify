@@ -73,6 +73,12 @@ export interface XlsxImportOptions {
   importProperties?: boolean;
 
   /**
+   * Import cell comments/notes
+   * @default true
+   */
+  importComments?: boolean;
+
+  /**
    * Maximum rows to import per sheet (0 = unlimited)
    * @default 0
    */
@@ -101,6 +107,7 @@ export const DEFAULT_XLSX_IMPORT_OPTIONS: Required<Omit<XlsxImportOptions, 'onPr
   importDimensions: true,
   importFreezePanes: true,
   importProperties: true,
+  importComments: true,
   maxRows: 0,
   maxCols: 0,
 };
