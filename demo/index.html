@@ -1164,7 +1164,7 @@
 
           // Show formula indicator
           const formula = cell?.formula;
-          const title = formula ? `Formula: =${formula.formula}` : '';
+          const title = formula ? `Formula: =${escapeHtml(formula.formula)}` : '';
           let style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
 
           // Check if this cell starts a merge
@@ -1199,6 +1199,13 @@
       const table = document.getElementById('previewTable');
       if (!table) return;
 
+      // Remove old listeners if they exist (prevent memory leak)
+      if (window.resizeListeners) {
+        preview.removeEventListener('mousedown', window.resizeListeners.previewMouseDown);
+        document.removeEventListener('mousemove', window.resizeListeners.docMouseMove);
+        document.removeEventListener('mouseup', window.resizeListeners.docMouseUp);
+      }
+
       let isResizing = false;
       let currentCol = null;
       let currentRow = null;
@@ -1207,7 +1214,8 @@
       let startWidth = 0;
       let startHeight = 0;
 
-      preview.addEventListener('mousedown', (e) => {
+      // Consolidated mousedown handler for both column and row resize
+      const previewMouseDown = (e) => {
         if (e.target.classList.contains('resize-handle')) {
           isResizing = true;
           currentCol = e.target.dataset.col;
@@ -1217,11 +1225,7 @@
           e.target.classList.add('resizing');
           document.body.classList.add('col-resizing');
           e.preventDefault();
-        }
-      });
-
-      preview.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('row-resize-handle')) {
+        } else if (e.target.classList.contains('row-resize-handle')) {
           isResizing = true;
           currentRow = e.target.dataset.row;
           startY = e.pageY;
@@ -1231,9 +1235,9 @@
           document.body.classList.add('row-resizing');
           e.preventDefault();
         }
-      });
+      };
 
-      document.addEventListener('mousemove', (e) => {
+      const docMouseMove = (e) => {
         if (!isResizing) return;
 
         if (currentCol !== null) {
@@ -1253,9 +1257,9 @@
             rowEl.style.height = newHeight + 'px';
           }
         }
-      });
+      };
 
-      document.addEventListener('mouseup', () => {
+      const docMouseUp = () => {
         if (isResizing) {
           isResizing = false;
           document.body.classList.remove('col-resizing', 'row-resizing');
@@ -1265,7 +1269,14 @@
           currentCol = null;
           currentRow = null;
         }
-      });
+      };
+
+      preview.addEventListener('mousedown', previewMouseDown);
+      document.addEventListener('mousemove', docMouseMove);
+      document.addEventListener('mouseup', docMouseUp);
+
+      // Store for cleanup on next call
+      window.resizeListeners = { previewMouseDown, docMouseMove, docMouseUp };
     }
 
     function columnLetter(index) {
