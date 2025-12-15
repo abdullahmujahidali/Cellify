@@ -1032,6 +1032,7 @@
       const dims = sheet.dimensions;
       console.log('Sheet dimensions:', dims);
       console.log('Sheet cells size:', sheet.cells?.size || 'N/A');
+      console.log('Sheet merges:', sheet.merges?.length || 0);
 
       if (!dims) {
         document.getElementById('preview').innerHTML = `
@@ -1047,6 +1048,23 @@
       const rowsToShow = Math.min(dims.endRow - dims.startRow + 1, 50);
       const colsToShow = Math.min(dims.endCol - dims.startCol + 1, 20);
 
+      const mergeStarts = new Map(); // "row,col" -> { rowSpan, colSpan }
+      const coveredCells = new Set(); // "row,col" cells that are covered by a merge
+
+      for (const merge of (sheet.merges || [])) {
+        const rowSpan = merge.endRow - merge.startRow + 1;
+        const colSpan = merge.endCol - merge.startCol + 1;
+        mergeStarts.set(`${merge.startRow},${merge.startCol}`, { rowSpan, colSpan });
+
+        for (let r = merge.startRow; r <= merge.endRow; r++) {
+          for (let c = merge.startCol; c <= merge.endCol; c++) {
+            if (r !== merge.startRow || c !== merge.startCol) {
+              coveredCells.add(`${r},${c}`);
+            }
+          }
+        }
+      }
+
       let html = '<table><thead><tr><th></th>';
 
       // Column headers
@@ -1059,6 +1077,12 @@
       for (let r = dims.startRow; r < dims.startRow + rowsToShow; r++) {
         html += `<tr><th>${r + 1}</th>`;
         for (let c = dims.startCol; c < dims.startCol + colsToShow; c++) {
+          const cellKey = `${r},${c}`;
+
+          if (coveredCells.has(cellKey)) {
+            continue;
+          }
+
           const cell = sheet.getCell(r, c);
           let value = cell?.value ?? '';
 
@@ -1072,9 +1096,18 @@
           // Show formula indicator
           const formula = cell?.formula;
           const title = formula ? `Formula: =${formula.formula}` : '';
-          const style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
+          let style = formula ? 'color: #059669; font-style: italic; font-weight: 500;' : '';
 
-          html += `<td title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
+          // Check if this cell starts a merge
+          const mergeInfo = mergeStarts.get(cellKey);
+          let spanAttrs = '';
+          if (mergeInfo) {
+            if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
+            if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
+            style += ' background: #F0FDF4; border: 1px solid #86EFAC;'; // Highlight merged cells
+          }
+
+          html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
         }
         html += '</tr>';
       }
