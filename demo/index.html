@@ -605,6 +605,63 @@
       font-size: 48px;
       margin-bottom: 16px;
     }
+
+    /* Cell selection and editing */
+    td.selected {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+      background-color: var(--primary-light) !important;
+    }
+
+    td.editing {
+      padding: 0;
+      overflow: visible;
+    }
+
+    td.editing input {
+      width: 100%;
+      height: 100%;
+      min-height: 32px;
+      border: none;
+      padding: 8px 12px;
+      font-size: inherit;
+      font-family: inherit;
+      background: var(--white);
+      outline: 2px solid var(--primary);
+      box-sizing: border-box;
+    }
+
+    td.modified::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 6px;
+      height: 6px;
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    /* Cursor for editable cells */
+    tbody td:not(:first-child) {
+      cursor: cell;
+    }
+
+    /* Edit hint in info bar */
+    .edit-hint {
+      color: var(--gray-500);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .edit-hint kbd {
+      background: var(--gray-200);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -1175,7 +1232,7 @@
             if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
           }
 
-          html += `<td${spanAttrs} title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
+          html += `<td${spanAttrs} data-row="${r}" data-col="${c}" title="${title}" style="${style}">${escapeHtml(String(value))}</td>`;
         }
         html += '</tr>';
       }
@@ -1190,8 +1247,13 @@
         </div>`;
       }
 
+      html += `<div class="edit-hint">
+        <kbd>Click</kbd> to select · <kbd>Double-click</kbd> or <kbd>Enter</kbd> to edit · <kbd>Tab</kbd> / <kbd>Arrow keys</kbd> to navigate · <kbd>Esc</kbd> to cancel
+      </div>`;
+
       document.getElementById('preview').innerHTML = html;
       initResizeHandlers();
+      initCellEditHandlers();
     }
 
     function initResizeHandlers() {
@@ -1277,6 +1339,333 @@
 
       // Store for cleanup on next call
       window.resizeListeners = { previewMouseDown, docMouseMove, docMouseUp };
+    }
+
+    // Cell editing state
+    let selectedRow = null;
+    let selectedCol = null;
+    let isEditing = false;
+
+    function initCellEditHandlers() {
+      const preview = document.getElementById('preview');
+      const table = document.getElementById('previewTable');
+      if (!table) return;
+
+      // Remove old listeners if they exist
+      if (window.cellEditListeners) {
+        preview.removeEventListener('click', window.cellEditListeners.onClick);
+        preview.removeEventListener('dblclick', window.cellEditListeners.onDblClick);
+        document.removeEventListener('keydown', window.cellEditListeners.onKeyDown);
+      }
+
+      // Reset state
+      selectedRow = null;
+      selectedCol = null;
+      isEditing = false;
+
+      const onClick = (e) => {
+        const td = e.target.closest('td[data-row][data-col]');
+        if (td && !isEditing) {
+          const row = parseInt(td.dataset.row);
+          const col = parseInt(td.dataset.col);
+          selectCell(row, col);
+        }
+      };
+
+      const onDblClick = (e) => {
+        const td = e.target.closest('td[data-row][data-col]');
+        if (td) {
+          const row = parseInt(td.dataset.row);
+          const col = parseInt(td.dataset.col);
+          selectCell(row, col);
+          startEditing(row, col);
+        }
+      };
+
+      const onKeyDown = (e) => {
+        handleCellKeyDown(e);
+      };
+
+      preview.addEventListener('click', onClick);
+      preview.addEventListener('dblclick', onDblClick);
+      document.addEventListener('keydown', onKeyDown);
+
+      window.cellEditListeners = { onClick, onDblClick, onKeyDown };
+    }
+
+    function selectCell(row, col) {
+      // Clear previous selection
+      document.querySelectorAll('td.selected').forEach(td => td.classList.remove('selected'));
+
+      // If clicking same cell while editing, don't change selection
+      if (isEditing && row === selectedRow && col === selectedCol) {
+        return;
+      }
+
+      // If editing another cell, save first
+      if (isEditing) {
+        const input = document.querySelector('td.editing input');
+        if (input) {
+          saveEdit(selectedRow, selectedCol, input.value);
+        }
+      }
+
+      selectedRow = row;
+      selectedCol = col;
+
+      // Find and highlight the cell
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (td) {
+        td.classList.add('selected');
+      }
+    }
+
+    function startEditing(row, col) {
+      if (isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.getCell(row, col);
+
+      // Get current value or formula
+      let editValue = '';
+      if (cell?.formula) {
+        editValue = '=' + cell.formula.formula;
+      } else if (cell?.value !== null && cell?.value !== undefined) {
+        if (cell.value instanceof Date) {
+          editValue = cell.value.toISOString().split('T')[0]; // YYYY-MM-DD format
+        } else {
+          editValue = String(cell.value);
+        }
+      }
+
+      isEditing = true;
+      td.classList.add('editing');
+
+      // Store original content for cancel
+      td.dataset.originalContent = td.innerHTML;
+
+      // Create input
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = editValue;
+      td.innerHTML = '';
+      td.appendChild(input);
+      input.focus();
+      input.select();
+
+      // Input event handlers
+      input.addEventListener('blur', () => {
+        if (isEditing) {
+          saveEdit(row, col, input.value);
+        }
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveEdit(row, col, input.value);
+          // Move to next row
+          moveSelection(1, 0);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelEdit(row, col);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          saveEdit(row, col, input.value);
+          moveSelection(0, e.shiftKey ? -1 : 1);
+        }
+      });
+    }
+
+    function saveEdit(row, col, newValue) {
+      if (!isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const cell = sheet.cell(row, col);
+      const oldValue = cell.value;
+
+      // Parse the new value
+      const parsed = parseInputValue(newValue);
+
+      // Update the cell
+      if (parsed.isFormula) {
+        cell.setFormula(parsed.value);
+        log(`Cell ${columnLetter(col)}${row + 1}: Set formula =${parsed.value}`, 'info');
+      } else {
+        cell.value = parsed.value;
+        const displayOld = oldValue instanceof Date ? oldValue.toLocaleDateString() : oldValue;
+        const displayNew = parsed.value instanceof Date ? parsed.value.toLocaleDateString() : parsed.value;
+        if (displayOld !== displayNew) {
+          log(`Cell ${columnLetter(col)}${row + 1}: "${displayOld}" → "${displayNew}"`, 'info');
+        }
+      }
+
+      // Update display
+      isEditing = false;
+      td.classList.remove('editing');
+
+      let displayValue = '';
+      if (cell.formula) {
+        displayValue = cell.value !== null && cell.value !== undefined ? cell.value : '';
+        td.style.color = '#059669';
+        td.style.fontStyle = 'italic';
+        td.style.fontWeight = '500';
+        td.title = `Formula: =${escapeHtml(cell.formula.formula)}`;
+      } else {
+        if (cell.value instanceof Date) {
+          displayValue = cell.value.toLocaleDateString();
+        } else if (typeof cell.value === 'number') {
+          displayValue = cell.value.toLocaleString();
+        } else {
+          displayValue = cell.value ?? '';
+        }
+        td.style.color = '';
+        td.style.fontStyle = '';
+        td.style.fontWeight = '';
+        td.title = '';
+      }
+
+      td.textContent = String(displayValue);
+      td.classList.add('modified');
+      delete td.dataset.originalContent;
+    }
+
+    function cancelEdit(row, col) {
+      if (!isEditing) return;
+
+      const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (!td) return;
+
+      isEditing = false;
+      td.classList.remove('editing');
+
+      // Restore original content
+      if (td.dataset.originalContent !== undefined) {
+        td.innerHTML = td.dataset.originalContent;
+        delete td.dataset.originalContent;
+      }
+
+      log(`Edit cancelled for cell ${columnLetter(col)}${row + 1}`, 'info');
+    }
+
+    function parseInputValue(str) {
+      const trimmed = str.trim();
+
+      // Check for formula
+      if (trimmed.startsWith('=')) {
+        return { isFormula: true, value: trimmed.slice(1) };
+      }
+
+      // Check for empty
+      if (trimmed === '') {
+        return { isFormula: false, value: '' };
+      }
+
+      // Check for boolean
+      if (trimmed.toLowerCase() === 'true') {
+        return { isFormula: false, value: true };
+      }
+      if (trimmed.toLowerCase() === 'false') {
+        return { isFormula: false, value: false };
+      }
+
+      // Check for number
+      const num = Number(trimmed);
+      if (!isNaN(num) && trimmed !== '') {
+        return { isFormula: false, value: num };
+      }
+
+      // Check for date (YYYY-MM-DD format)
+      const dateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (dateMatch) {
+        const date = new Date(trimmed);
+        if (!isNaN(date.getTime())) {
+          return { isFormula: false, value: date };
+        }
+      }
+
+      // Default to string
+      return { isFormula: false, value: trimmed };
+    }
+
+    function handleCellKeyDown(e) {
+      // Ignore if not focused on the preview area or if target is an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Need a selected cell
+      if (selectedRow === null || selectedCol === null) return;
+
+      if (isEditing) {
+        // These are handled by the input's own keydown handler
+        return;
+      }
+
+      // Enter or F2: Start editing
+      if (e.key === 'Enter' || e.key === 'F2') {
+        e.preventDefault();
+        startEditing(selectedRow, selectedCol);
+        return;
+      }
+
+      // Arrow keys: Navigate
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveSelection(-1, 0);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveSelection(1, 0);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        moveSelection(0, -1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        moveSelection(0, 1);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        moveSelection(0, e.shiftKey ? -1 : 1);
+      }
+
+      // Start typing: Start editing with the typed character
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        startEditing(selectedRow, selectedCol);
+        // Replace value with the typed character
+        const input = document.querySelector('td.editing input');
+        if (input) {
+          input.value = e.key;
+          // Move cursor to end
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }
+    }
+
+    function moveSelection(rowDelta, colDelta) {
+      if (selectedRow === null || selectedCol === null) return;
+
+      const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+      const dims = sheet.dimensions;
+      if (!dims) return;
+
+      // Find next valid cell within preview bounds
+      const table = document.getElementById('previewTable');
+      if (!table) return;
+
+      const newRow = selectedRow + rowDelta;
+      const newCol = selectedCol + colDelta;
+
+      // Check if the new cell exists in the table
+      const newTd = document.querySelector(`td[data-row="${newRow}"][data-col="${newCol}"]`);
+      if (newTd) {
+        selectCell(newRow, newCol);
+      }
     }
 
     function columnLetter(index) {

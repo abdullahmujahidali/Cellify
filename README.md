@@ -5,15 +5,27 @@
 <h1 align="center">Cellify</h1>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/cellify"><img src="https://img.shields.io/npm/v/cellify.svg?style=flat-square" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/cellify"><img src="https://img.shields.io/npm/dm/cellify.svg?style=flat-square" alt="npm downloads"></a>
   <a href="https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml"><img src="https://github.com/abdullahmujahidali/Cellify/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://codecov.io/gh/abdullahmujahidali/Cellify"><img src="https://codecov.io/gh/abdullahmujahidali/Cellify/graph/badge.svg" alt="codecov"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0-blue.svg?style=flat-square" alt="TypeScript"></a>
+  <a href="https://abdullahmujahidali.github.io/Cellify/"><img src="https://img.shields.io/badge/docs-online-brightgreen.svg?style=flat-square" alt="Documentation"></a>
 </p>
 
 <p align="center">
   A lightweight, zero-dependency* spreadsheet library for JavaScript/TypeScript.<br>
   Create, read, and manipulate Excel files with ease.
 </p>
+
+<p align="center">
+  <a href="https://abdullahmujahidali.github.io/Cellify/">📚 Documentation</a> •
+  <a href="https://abdullahmujahidali.github.io/Cellify/demo/">🎮 Live Demo</a> •
+  <a href="https://www.npmjs.com/package/cellify">📦 npm</a>
+</p>
+
+---
 
 > \*Only dependency is `fflate` for ZIP compression
 
