@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A lightweight, affordable spreadsheet library for building Excel-like experiences",
   "type": "module",
-  "main": "./dist/cjs/index.cjs",
+  "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
   "exports": {
@@ -13,8 +13,8 @@
         "default": "./dist/esm/index.js"
       },
       "require": {
-        "types": "./dist/types/index.d.cts",
-        "default": "./dist/cjs/index.cjs"
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
       }
     }
   },
@@ -22,10 +22,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm run build:esm && npm run build:cjs && npm run build:types",
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:cjs-package",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:types": "tsc -p tsconfig.types.json",
+    "build:cjs-package": "echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
