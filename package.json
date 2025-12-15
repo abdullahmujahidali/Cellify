@@ -46,9 +46,9 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.0.0",
+    "@vitest/coverage-v8": "^4.0.15",
     "typescript": "^5.3.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.0.15"
   },
   "dependencies": {
     "fflate": "^0.8.0"
