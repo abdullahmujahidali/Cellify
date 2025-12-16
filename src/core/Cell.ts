@@ -205,6 +205,19 @@ export class Cell {
   }
 
   /**
+   * Set the cell's comment
+   */
+  set comment(value: CellComment | string | undefined | null) {
+    if (value === undefined || value === null) {
+      this._comment = undefined;
+    } else if (typeof value === 'string') {
+      this._comment = { text: value };
+    } else {
+      this._comment = value;
+    }
+  }
+
+  /**
    * Set a comment on the cell
    */
   setComment(text: string | RichTextValue, author?: string): this {
