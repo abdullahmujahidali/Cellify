@@ -97,6 +97,14 @@ export interface XlsxImportOptions {
   maxCols?: number;
 
   /**
+   * Use WebAssembly-accelerated parser for better performance.
+   * Falls back to JavaScript parser if WASM is not available.
+   * Call initXlsxWasm() before importing for best results.
+   * @default true
+   */
+  useWasm?: boolean;
+
+  /**
    * Progress callback for monitoring import progress
    */
   onProgress?: XlsxProgressCallback;
@@ -117,6 +125,7 @@ export const DEFAULT_XLSX_IMPORT_OPTIONS: Required<Omit<XlsxImportOptions, 'onPr
   importHyperlinks: true,
   maxRows: 0,
   maxCols: 0,
+  useWasm: true,
 };
 
 /**

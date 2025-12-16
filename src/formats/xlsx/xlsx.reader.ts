@@ -29,6 +29,14 @@ import {
   resolveRelPath,
   unescapeXml,
 } from './xlsx.parser.js';
+import {
+  isXlsxWasmReady,
+  parseSharedStringsAccelerated,
+  parseStylesAccelerated,
+  parseWorksheetAccelerated,
+  type ParsedWorksheet,
+  type ParsedStyles,
+} from './xlsx.parser.wasm.js';
 import { excelSerialToDate } from './xlsx.utils.js';
 import { a1ToAddress } from '../../types/cell.types.js';
 
@@ -283,6 +291,15 @@ function filterSheets(
  * Parse shared strings table
  */
 function parseSharedStrings(xml: string, ctx: XlsxParseContext): void {
+  // Try WASM-accelerated parsing first
+  if (ctx.options.useWasm && isXlsxWasmReady()) {
+    const wasmResult = parseSharedStringsAccelerated(xml);
+    if (wasmResult) {
+      ctx.sharedStrings.push(...wasmResult);
+      return;
+    }
+  }
+
   const siElements = parseElements(xml, 'si');
 
   for (const si of siElements) {
@@ -314,6 +331,14 @@ function parseSharedStrings(xml: string, ctx: XlsxParseContext): void {
  * Parse styles.xml
  */
 function parseStyles(xml: string, ctx: XlsxParseContext): void {
+  if (ctx.options.useWasm && isXlsxWasmReady()) {
+    const wasmResult = parseStylesAccelerated(xml);
+    if (wasmResult) {
+      applyWasmStyles(wasmResult, ctx);
+      return;
+    }
+  }
+
   // Parse number formats
   const numFmts = parseElements(xml, 'numFmt');
   for (const fmt of numFmts) {
@@ -430,6 +455,89 @@ function parseStyles(xml: string, ctx: XlsxParseContext): void {
 }
 
 /**
+ * Apply WASM-parsed styles to parse context
+ */
+function applyWasmStyles(styles: ParsedStyles, ctx: XlsxParseContext): void {
+  for (const [id, code] of Object.entries(styles.num_fmts)) {
+    ctx.numberFormats.set(Number(id), code);
+  }
+
+  for (const font of styles.fonts) {
+    const fontInfo: FontInfo = {};
+    if (font.bold) fontInfo.bold = true;
+    if (font.italic) fontInfo.italic = true;
+    if (font.underline) fontInfo.underline = true;
+    if (font.strikethrough) fontInfo.strike = true;
+    if (font.size) fontInfo.size = font.size;
+    if (font.color) fontInfo.color = '#' + font.color.slice(2); // Remove alpha
+    if (font.name) fontInfo.name = font.name;
+    ctx.fonts.push(fontInfo);
+  }
+
+  for (const fill of styles.fills) {
+    const fillInfo: FillInfo = {};
+    if (fill.pattern_type) fillInfo.patternType = fill.pattern_type;
+    if (fill.fg_color) fillInfo.fgColor = '#' + fill.fg_color.slice(2);
+    if (fill.bg_color) fillInfo.bgColor = '#' + fill.bg_color.slice(2);
+    ctx.fills.push(fillInfo);
+  }
+
+  for (const border of styles.borders) {
+    const borderInfo: BorderInfo = {};
+    if (border.left_style) {
+      borderInfo.left = {
+        style: border.left_style,
+        color: border.left_color ? '#' + border.left_color.slice(2) : undefined,
+      };
+    }
+    if (border.right_style) {
+      borderInfo.right = {
+        style: border.right_style,
+        color: border.right_color ? '#' + border.right_color.slice(2) : undefined,
+      };
+    }
+    if (border.top_style) {
+      borderInfo.top = {
+        style: border.top_style,
+        color: border.top_color ? '#' + border.top_color.slice(2) : undefined,
+      };
+    }
+    if (border.bottom_style) {
+      borderInfo.bottom = {
+        style: border.bottom_style,
+        color: border.bottom_color ? '#' + border.bottom_color.slice(2) : undefined,
+      };
+    }
+    ctx.borders.push(borderInfo);
+  }
+
+  for (const xf of styles.cell_xfs) {
+    const info: CellXfInfo = {
+      fontId: xf.font_id ?? 0,
+      fillId: xf.fill_id ?? 0,
+      borderId: xf.border_id ?? 0,
+      numFmtId: xf.num_fmt_id ?? 0,
+      applyFont: xf.apply_font,
+      applyFill: xf.apply_fill,
+      applyBorder: xf.apply_border,
+      applyNumberFormat: xf.apply_number_format,
+      applyAlignment: xf.apply_alignment,
+    };
+
+    if (xf.horizontal || xf.vertical || xf.wrap_text || xf.text_rotation) {
+      info.alignment = {
+        horizontal: xf.horizontal as 'left' | 'center' | 'right' | undefined,
+        vertical: xf.vertical as 'top' | 'middle' | 'bottom' | undefined,
+        wrapText: xf.wrap_text,
+        textRotation: xf.text_rotation ?? undefined,
+      };
+    }
+
+    ctx.cellXfs.push(info);
+  }
+}
+
+/**
  * Parse document properties
  */
 function parseProperties(xml: string, workbook: Workbook): void {
@@ -444,6 +552,146 @@ function parseProperties(xml: string, workbook: Workbook): void {
  * Parse worksheet XML
  */
 function parseWorksheet(xml: string, sheet: Sheet, ctx: XlsxParseContext): void {
+  const opts = ctx.options;
+
+  if (opts.useWasm && isXlsxWasmReady()) {
+    const wasmResult = parseWorksheetAccelerated(xml);
+    if (wasmResult) {
+      applyWasmWorksheet(wasmResult, sheet, ctx);
+      return;
+    }
+  }
+
+  parseWorksheetJs(xml, sheet, ctx);
+}
+
+/**
+ * Apply WASM-parsed worksheet data to sheet
+ */
+function applyWasmWorksheet(ws: ParsedWorksheet, sheet: Sheet, ctx: XlsxParseContext): void {
+  const opts = ctx.options;
+
+  if (opts.importDimensions) {
+    for (const [colNum, width] of Object.entries(ws.col_widths)) {
+      const colIndex = Number(colNum) - 1;
+      if (width > 0) {
+        sheet.setColumnWidth(colIndex, width);
+      }
+    }
+  }
+
+  for (const row of ws.rows) {
+    const rowIndex = row.row_num - 1;
+
+    if (opts.maxRows > 0 && rowIndex >= opts.maxRows) continue;
+
+    if (opts.importDimensions && row.height && row.height > 0) {
+      sheet.setRowHeight(rowIndex, row.height);
+    }
+
+    for (const cellData of row.cells) {
+      const { row: cellRow, col: cellCol } = parseCellRef(cellData.reference);
+
+      if (opts.maxCols > 0 && cellCol >= opts.maxCols) continue;
+
+      const styleIndex = cellData.style_index ?? 0;
+
+      const value = parseCellValueFromWasm(
+        cellData.cell_type,
+        cellData.value,
+        ctx,
+        styleIndex
+      );
+
+      const cell = sheet.cell(cellRow, cellCol);
+
+      if (cellData.formula) {
+        cell.setFormula(cellData.formula, value);
+        ctx.stats.formulaCells++;
+        if (value !== undefined && value !== null) {
+          ctx.stats.totalCells++;
+        }
+      } else if (value !== undefined && value !== null) {
+        cell.value = value;
+        ctx.stats.totalCells++;
+      }
+
+      if (opts.importStyles && styleIndex > 0 && ctx.cellXfs[styleIndex]) {
+        const style = buildCellStyle(ctx.cellXfs[styleIndex], ctx);
+        if (style && Object.keys(style).length > 0) {
+          cell.style = style;
+        }
+      }
+    }
+  }
+
+  if (opts.importMergedCells) {
+    for (const mergeRef of ws.merge_cells) {
+      try {
+        sheet.mergeCells(mergeRef);
+        ctx.stats.mergedRanges++;
+      } catch {
+        ctx.warnings.push({
+          code: 'INVALID_MERGE',
+          message: `Invalid merge range: ${mergeRef}`,
+          location: mergeRef,
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Parse cell value from WASM-parsed data
+ */
+function parseCellValueFromWasm(
+  cellType: string | null,
+  valueStr: string | null,
+  ctx: XlsxParseContext,
+  styleIndex: number
+): string | number | boolean | Date | null {
+  if (valueStr === null && cellType !== 'inlineStr') {
+    return null;
+  }
+
+  switch (cellType) {
+    case 's': {
+      const index = parseInt(valueStr || '0', 10);
+      return ctx.sharedStrings[index] ?? '';
+    }
+
+    case 'b': {
+      return valueStr === '1';
+    }
+
+    case 'e': {
+      return valueStr || '#VALUE!';
+    }
+
+    case 'str':
+    case 'inlineStr': {
+      return unescapeXml(valueStr || '');
+    }
+
+    default: {
+      const num = parseFloat(valueStr || '0');
+
+      if (ctx.options.importStyles && styleIndex < ctx.cellXfs.length) {
+        const xf = ctx.cellXfs[styleIndex];
+        if (xf && isDateFormat(xf.numFmtId, ctx.numberFormats.get(xf.numFmtId))) {
+          return excelSerialToDate(num);
+        }
+      }
+
+      return num;
+    }
+  }
+}
+
+/**
+ * Parse worksheet using JavaScript (fallback)
+ */
+function parseWorksheetJs(xml: string, sheet: Sheet, ctx: XlsxParseContext): void {
   const opts = ctx.options;
 
   // Parse dimensions (column widths)

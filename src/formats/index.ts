@@ -36,3 +36,6 @@ export { workbookToXlsx, workbookToXlsxBlob } from './xlsx/index.js';
 
 // XLSX Import
 export { xlsxToWorkbook, xlsxBlobToWorkbook } from './xlsx/index.js';
+
+// XLSX WASM Acceleration
+export { initXlsxWasm, isXlsxWasmReady } from './xlsx/index.js';

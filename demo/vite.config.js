@@ -16,4 +16,8 @@ export default defineConfig({
       'cellify': resolve(__dirname, '../src/index.ts'),
     },
   },
+  optimizeDeps: {
+    exclude: ['cellify-wasm'],
+  },
+  assetsInclude: ['**/*.wasm'],
 });
