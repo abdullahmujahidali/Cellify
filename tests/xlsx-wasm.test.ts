@@ -491,5 +491,193 @@ describe('xlsx.reader.ts WASM Integration', () => {
 
       expect(workbook.getSheet('Test')?.cell('A1').value).toBe('World');
     });
+
+    it('should handle complex workbook with styles when WASM unavailable', async () => {
+      const { Workbook } = await import('../src/core/Workbook.js');
+      const { workbookToXlsx, xlsxToWorkbook } = await import('../src/formats/xlsx/index.js');
+
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Styled');
+      sheet.cell('A1').value = 'Bold';
+      sheet.cell('A1').style = { font: { bold: true } };
+      sheet.cell('B1').value = 42;
+      sheet.cell('B1').style = { numberFormat: { formatCode: '#,##0' } };
+      sheet.mergeCells('C1:D1');
+      sheet.cell('C1').value = 'Merged';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      expect(workbook.getSheet('Styled')?.cell('A1').value).toBe('Bold');
+      expect(workbook.getSheet('Styled')?.cell('B1').value).toBe(42);
+    });
+
+    it('should import multiple sheets correctly', async () => {
+      const { Workbook } = await import('../src/core/Workbook.js');
+      const { workbookToXlsx, xlsxToWorkbook } = await import('../src/formats/xlsx/index.js');
+
+      const wb = new Workbook();
+      wb.addSheet('Sheet1').cell('A1').value = 'First';
+      wb.addSheet('Sheet2').cell('A1').value = 'Second';
+      wb.addSheet('Sheet3').cell('A1').value = 'Third';
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook, stats } = xlsxToWorkbook(xlsx);
+
+      expect(stats.sheetCount).toBe(3);
+      expect(workbook.getSheet('Sheet1')?.cell('A1').value).toBe('First');
+      expect(workbook.getSheet('Sheet2')?.cell('A1').value).toBe('Second');
+      expect(workbook.getSheet('Sheet3')?.cell('A1').value).toBe('Third');
+    });
+  });
+});
+
+describe('xlsx.parser.wasm.ts accelerated functions', () => {
+  describe('when WASM is initialized', () => {
+    it('parseSharedStringsAccelerated returns data when WASM ready', async () => {
+      vi.resetModules();
+
+      const mockStrings = ['String1', 'String2'];
+      vi.doMock('../src/formats/xlsx/wasm/cellify_wasm.js', () => ({
+        default: vi.fn().mockResolvedValue(undefined),
+        init: vi.fn(),
+        parse_shared_strings: vi.fn().mockReturnValue(mockStrings),
+      }));
+
+      const { initXlsxWasm, parseSharedStringsAccelerated } = await import(
+        '../src/formats/xlsx/xlsx.parser.wasm.js'
+      );
+
+      await initXlsxWasm();
+      const result = parseSharedStringsAccelerated('<sst/>');
+
+      expect(result).toEqual(mockStrings);
+    });
+
+    it('parseWorksheetAccelerated returns data when WASM ready', async () => {
+      vi.resetModules();
+
+      const mockWorksheet = {
+        rows: [
+          {
+            row_num: 1,
+            cells: [{ reference: 'A1', cell_type: 's', style_index: 0, value: '0', formula: null }],
+            height: null,
+            hidden: false,
+          },
+        ],
+        merge_cells: ['A1:B1'],
+        hyperlinks: [],
+        col_widths: { 1: 15 },
+      };
+
+      vi.doMock('../src/formats/xlsx/wasm/cellify_wasm.js', () => ({
+        default: vi.fn().mockResolvedValue(undefined),
+        init: vi.fn(),
+        parse_worksheet: vi.fn().mockReturnValue(mockWorksheet),
+      }));
+
+      const { initXlsxWasm, parseWorksheetAccelerated } = await import(
+        '../src/formats/xlsx/xlsx.parser.wasm.js'
+      );
+
+      await initXlsxWasm();
+      const result = parseWorksheetAccelerated('<worksheet/>');
+
+      expect(result).toEqual(mockWorksheet);
+    });
+
+    it('parseStylesAccelerated returns data when WASM ready', async () => {
+      vi.resetModules();
+
+      const mockStyles = {
+        cell_xfs: [
+          {
+            num_fmt_id: 0,
+            font_id: 0,
+            fill_id: 0,
+            border_id: 0,
+            xf_id: null,
+            apply_number_format: false,
+            apply_font: false,
+            apply_fill: false,
+            apply_border: false,
+            apply_alignment: false,
+            horizontal: null,
+            vertical: null,
+            wrap_text: false,
+            text_rotation: null,
+            indent: null,
+          },
+        ],
+        fonts: [{ bold: false, italic: false, underline: false, strikethrough: false, size: 11, color: null, name: 'Calibri' }],
+        fills: [{ pattern_type: 'none', fg_color: null, bg_color: null }],
+        borders: [{ left_style: null, left_color: null, right_style: null, right_color: null, top_style: null, top_color: null, bottom_style: null, bottom_color: null }],
+        num_fmts: {},
+      };
+
+      vi.doMock('../src/formats/xlsx/wasm/cellify_wasm.js', () => ({
+        default: vi.fn().mockResolvedValue(undefined),
+        init: vi.fn(),
+        parse_styles: vi.fn().mockReturnValue(mockStyles),
+      }));
+
+      const { initXlsxWasm, parseStylesAccelerated } = await import(
+        '../src/formats/xlsx/xlsx.parser.wasm.js'
+      );
+
+      await initXlsxWasm();
+      const result = parseStylesAccelerated('<styleSheet/>');
+
+      expect(result).toEqual(mockStyles);
+    });
+
+    it('parseWorkbookAccelerated returns data when WASM ready', async () => {
+      vi.resetModules();
+
+      const mockSheets = [
+        { name: 'Sheet1', sheet_id: 1, rid: 'rId1', state: null },
+        { name: 'Sheet2', sheet_id: 2, rid: 'rId2', state: null },
+      ];
+
+      vi.doMock('../src/formats/xlsx/wasm/cellify_wasm.js', () => ({
+        default: vi.fn().mockResolvedValue(undefined),
+        init: vi.fn(),
+        parse_workbook: vi.fn().mockReturnValue(mockSheets),
+      }));
+
+      const { initXlsxWasm, parseWorkbookAccelerated } = await import(
+        '../src/formats/xlsx/xlsx.parser.wasm.js'
+      );
+
+      await initXlsxWasm();
+      const result = parseWorkbookAccelerated('<workbook/>');
+
+      expect(result).toEqual(mockSheets);
+    });
+
+    it('parseRelationshipsAccelerated returns data when WASM ready', async () => {
+      vi.resetModules();
+
+      const mockRels = [
+        { id: 'rId1', rel_type: 'worksheet', target: 'worksheets/sheet1.xml', target_mode: null },
+        { id: 'rId2', rel_type: 'styles', target: 'styles.xml', target_mode: null },
+      ];
+
+      vi.doMock('../src/formats/xlsx/wasm/cellify_wasm.js', () => ({
+        default: vi.fn().mockResolvedValue(undefined),
+        init: vi.fn(),
+        parse_relationships: vi.fn().mockReturnValue(mockRels),
+      }));
+
+      const { initXlsxWasm, parseRelationshipsAccelerated } = await import(
+        '../src/formats/xlsx/xlsx.parser.wasm.js'
+      );
+
+      await initXlsxWasm();
+      const result = parseRelationshipsAccelerated('<Relationships/>');
+
+      expect(result).toEqual(mockRels);
+    });
   });
 });
