@@ -34,7 +34,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build && npm run test",
+    "prepublishOnly": "npm run clean && npm run build:all && npm run test",
     "demo": "vite demo",
     "demo:build": "vite build --config demo/vite.config.js"
   },
