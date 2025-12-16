@@ -15,6 +15,18 @@ window.sheetToCsv = sheetToCsv;
 window.currentWorkbook = null;
 window.currentSheetIndex = 0;
 
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function log(message, type = '') {
   const logEl = document.getElementById('log');
@@ -480,7 +492,7 @@ function displayImportResult(result) {
     warningsEl.style.display = 'block';
     warningsEl.innerHTML = `
           <p class="warnings-title">⚠️ Warnings</p>
-          <ul>${warnings.map(w => `<li>${w.message}</li>`).join('')}</ul>
+          <ul>${warnings.map(w => `<li>${escapeHtml(w.message)}</li>`).join('')}</ul>
         `;
   } else {
     warningsEl.style.display = 'none';
@@ -489,7 +501,7 @@ function displayImportResult(result) {
 
   const tabsEl = document.getElementById('sheetTabs');
   tabsEl.innerHTML = workbook.sheets.map((sheet, i) =>
-    `<button class="sheet-tab ${i === 0 ? 'active' : ''}" data-sheet-index="${i}">${sheet.name}</button>`
+    `<button class="sheet-tab ${i === 0 ? 'active' : ''}" data-sheet-index="${i}">${escapeHtml(sheet.name)}</button>`
   ).join('');
 
 
@@ -1996,8 +2008,10 @@ function cellStyleToCss(style) {
     const font = style.font;
     if (font.bold) css += 'font-weight: bold;';
     if (font.italic) css += 'font-style: italic;';
-    if (font.underline) css += 'text-decoration: underline;';
-    if (font.strikethrough) css += 'text-decoration: line-through;';
+    const textDecorations = [];
+    if (font.underline) textDecorations.push('underline');
+    if (font.strikethrough) textDecorations.push('line-through');
+    if (textDecorations.length > 0) css += `text-decoration: ${textDecorations.join(' ')};`;
     if (font.color) css += `color: ${font.color};`;
     if (font.size) css += `font-size: ${font.size}pt;`;
     if (font.name) css += `font-family: "${font.name}", sans-serif;`;

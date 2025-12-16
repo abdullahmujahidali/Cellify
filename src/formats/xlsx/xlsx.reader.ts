@@ -681,13 +681,10 @@ function parseCellValue(
     }
 
     case 'inlineStr': {
-      // Inline string
-      const tContent = getTextContent(cellInner, 't');
-      if (tContent !== undefined) return tContent;
-
-      // Rich text inline
+      // Inline string - check for <is> element first (standard format)
       const is = parseElement(cellInner, 'is');
       if (is) {
+        // Rich text with <r> runs
         const rElements = parseElements(is.inner, 'r');
         if (rElements.length > 0) {
           let text = '';
@@ -699,6 +696,10 @@ function parseCellValue(
         }
         return getTextContent(is.inner, 't') || '';
       }
+
+      const tContent = getTextContent(cellInner, 't');
+      if (tContent !== undefined) return tContent;
+
       return '';
     }
 
