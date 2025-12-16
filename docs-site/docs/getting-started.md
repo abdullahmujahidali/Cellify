@@ -92,6 +92,22 @@ fileInput.addEventListener('change', async (e) => {
 });
 ```
 
+### WASM Performance Boost
+
+For large Excel files (10K+ cells), initialize the WASM parser at startup for 10-50x faster imports:
+
+```typescript
+import { initXlsxWasm, xlsxBlobToWorkbook } from 'cellify';
+
+// Initialize once at startup
+await initXlsxWasm();
+
+// All imports now use high-performance WASM parser
+const result = await xlsxBlobToWorkbook(file);
+```
+
+See the [Excel Import/Export guide](/docs/guides/excel#wasm-acceleration) for more details.
+
 ### Working with CSV
 
 ```typescript

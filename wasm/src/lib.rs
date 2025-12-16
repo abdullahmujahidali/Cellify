@@ -86,7 +86,6 @@ fn parse_worksheet_impl(xml: &str) -> ParsedWorksheet {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                let is_empty = matches!(reader.read_event_into(&mut Vec::new()), Ok(Event::Empty(_)));
                 match e.local_name().as_ref() {
                     b"row" => {
                         let mut row = ParsedRow {
@@ -458,7 +457,6 @@ fn parse_styles_impl(xml: &str) -> ParsedStyles {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                let is_empty = e.name().as_ref() == e.name().as_ref(); // Check if self-closing
                 match e.local_name().as_ref() {
                     b"cellXfs" => in_cell_xfs = true,
                     b"fonts" => in_fonts = true,

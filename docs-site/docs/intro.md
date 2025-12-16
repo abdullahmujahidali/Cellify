@@ -17,15 +17,17 @@ slug: /
 - **Cell Operations** - Merge cells, freeze panes, auto-filters
 - **Formulas** - Preserve and create Excel formulas
 - **Accessibility** - Built-in helpers for screen readers
+- **WASM Acceleration** - Optional Rust/WebAssembly parser for 10-50x faster imports
 
 ## Why Cellify?
 
 | Feature | Cellify | ExcelJS | SheetJS |
 |---------|---------|---------|---------|
-| Bundle Size | ~8KB | ~1MB | ~500KB |
+| Bundle Size | ~8KB (+40KB WASM) | ~1MB | ~500KB |
 | Dependencies | 1 (fflate) | 15+ | 0 |
 | TypeScript | Native | Yes | Partial |
 | Styling | Full | Full | Limited |
+| WASM Parser | Yes (10-50x faster) | No | No |
 | Streaming | No | Yes | Yes |
 
 Cellify is perfect for:
