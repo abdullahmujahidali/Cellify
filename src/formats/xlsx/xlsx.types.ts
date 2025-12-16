@@ -151,6 +151,7 @@ export const REL_TYPES = {
   extendedProperties: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties',
   comments: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
   vmlDrawing: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing',
+  hyperlink: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
 } as const;
 
 /**

@@ -310,6 +310,71 @@ function exportCommentsExample() {
   log('Downloaded with-comments.xlsx (hover over cells to see comments)', 'success');
 }
 
+function exportHyperlinksExample() {
+  log('Creating hyperlinks example...');
+
+  const workbook = new Workbook();
+  workbook.title = 'Hyperlinks Example';
+
+  const sheet = workbook.addSheet('Resources');
+
+  sheet.cell('A1').value = 'Useful Resources';
+  sheet.cell('A1').style = {
+    font: { bold: true, size: 16, color: '#FFFFFF' },
+    fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#3B82F6' },
+    alignment: { horizontal: 'center' },
+  };
+  sheet.mergeCells('A1:C1');
+
+  const headers = ['Name', 'Description', 'Link Type'];
+  headers.forEach((header, i) => {
+    const cell = sheet.cell(2, i);
+    cell.value = header;
+    cell.style = {
+      font: { bold: true, color: '#FFFFFF' },
+      fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#6366F1' },
+      alignment: { horizontal: 'center' },
+    };
+  });
+
+  const links = [
+    { name: 'Cellify GitHub', desc: 'Source code repository', url: 'https://github.com/abdullahmujahidali/Cellify', type: 'External URL' },
+    { name: 'Documentation', desc: 'Official documentation', url: 'https://abdullahmujahidali.github.io/Cellify/', type: 'External URL' },
+    { name: 'npm Package', desc: 'Install from npm', url: 'https://www.npmjs.com/package/cellify', type: 'External URL' },
+    { name: 'Email Support', desc: 'Contact the author', url: 'mailto:support@example.com', type: 'Email' },
+    { name: 'Go to Summary', desc: 'Jump to summary section', url: '#Summary!A1', type: 'Internal' },
+  ];
+
+  links.forEach((link, i) => {
+    const row = i + 3;
+    const nameCell = sheet.cell(row, 0);
+    nameCell.value = link.name;
+    nameCell.setHyperlink(link.url, link.desc);
+    nameCell.style = {
+      font: { color: '#2563EB', underline: 'single' },
+    };
+
+    sheet.cell(row, 1).value = link.desc;
+    sheet.cell(row, 2).value = link.type;
+  });
+
+  const summary = workbook.addSheet('Summary');
+  summary.cell('A1').value = 'Summary Page';
+  summary.cell('A1').style = { font: { bold: true, size: 14 } };
+  summary.cell('A2').value = 'This page is linked from the Resources sheet';
+  summary.cell('A3').value = 'Go back to Resources';
+  summary.cell('A3').setHyperlink('#Resources!A1', 'Back to Resources');
+  summary.cell('A3').style = { font: { color: '#2563EB', underline: 'single' } };
+
+  sheet.setColumnWidth(0, 20);
+  sheet.setColumnWidth(1, 25);
+  sheet.setColumnWidth(2, 15);
+
+  const blob = workbookToXlsxBlob(workbook);
+  download(blob, 'with-hyperlinks.xlsx');
+  log('Downloaded with-hyperlinks.xlsx (click links in Excel to navigate)', 'success');
+}
+
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -2036,5 +2101,6 @@ document.getElementById('btnStyled').addEventListener('click', exportStyledExamp
 document.getElementById('btnFormula').addEventListener('click', exportFormulaExample);
 document.getElementById('btnMultiSheet').addEventListener('click', exportMultiSheetExample);
 document.getElementById('btnComments').addEventListener('click', exportCommentsExample);
+document.getElementById('btnHyperlinks').addEventListener('click', exportHyperlinksExample);
 document.getElementById('btnReExportXlsx').addEventListener('click', reExportXlsx);
 document.getElementById('btnReExportCsv').addEventListener('click', reExportCsv);

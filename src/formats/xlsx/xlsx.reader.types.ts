@@ -79,6 +79,12 @@ export interface XlsxImportOptions {
   importComments?: boolean;
 
   /**
+   * Import cell hyperlinks
+   * @default true
+   */
+  importHyperlinks?: boolean;
+
+  /**
    * Maximum rows to import per sheet (0 = unlimited)
    * @default 0
    */
@@ -108,6 +114,7 @@ export const DEFAULT_XLSX_IMPORT_OPTIONS: Required<Omit<XlsxImportOptions, 'onPr
   importFreezePanes: true,
   importProperties: true,
   importComments: true,
+  importHyperlinks: true,
   maxRows: 0,
   maxCols: 0,
 };

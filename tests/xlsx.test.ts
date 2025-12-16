@@ -1625,4 +1625,223 @@ describe('XLSX Import', () => {
       expect(contentTypes).toContain('comments');
     });
   });
+
+  describe('Hyperlinks Export', () => {
+    it('should export external URL hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Click here';
+      sheet.cell('A1').setHyperlink('https://example.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+      expect(sheetXml).toContain('<hyperlinks>');
+      expect(sheetXml).toContain('ref="A1"');
+      expect(sheetXml).toContain('r:id="rId');
+    });
+
+    it('should export hyperlink with tooltip', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link';
+      sheet.cell('A1').setHyperlink('https://example.com', 'Visit Example');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+      expect(sheetXml).toContain('tooltip="Visit Example"');
+    });
+
+    it('should export mailto hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Email us';
+      sheet.cell('A1').setHyperlink('mailto:test@example.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+      expect(sheetXml).toContain('<hyperlinks>');
+      expect(sheetXml).toContain('ref="A1"');
+    });
+
+    it('should export internal cell reference hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Go to B5';
+      sheet.cell('A1').setHyperlink('#B5');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+      expect(sheetXml).toContain('<hyperlinks>');
+      expect(sheetXml).toContain('location="B5"');
+    });
+
+    it('should export internal sheet reference hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Go to Sheet2';
+      sheet.cell('A1').setHyperlink('#Sheet2!A1');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+
+      expect(sheetXml).toContain('<hyperlinks>');
+      expect(sheetXml).toContain('location="Sheet2!A1"');
+    });
+
+    it('should create worksheet rels for external hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link';
+      sheet.cell('A1').setHyperlink('https://example.com');
+
+      const xlsx = workbookToXlsx(wb);
+
+      expect(hasFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+      const relsXml = getXmlFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels');
+
+      expect(relsXml).toContain('hyperlink');
+      expect(relsXml).toContain('https://example.com');
+      expect(relsXml).toContain('TargetMode="External"');
+    });
+
+    it('should export multiple hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Google';
+      sheet.cell('A1').setHyperlink('https://google.com');
+      sheet.cell('A2').value = 'GitHub';
+      sheet.cell('A2').setHyperlink('https://github.com');
+      sheet.cell('A3').value = 'Internal';
+      sheet.cell('A3').setHyperlink('#Sheet1!B1');
+
+      const xlsx = workbookToXlsx(wb);
+      const sheetXml = getXmlFile(xlsx, 'xl/worksheets/sheet1.xml');
+      const relsXml = getXmlFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels');
+
+      expect(sheetXml).toContain('ref="A1"');
+      expect(sheetXml).toContain('ref="A2"');
+      expect(sheetXml).toContain('ref="A3"');
+      expect(relsXml).toContain('https://google.com');
+      expect(relsXml).toContain('https://github.com');
+    });
+
+    it('should handle hyperlinks with comments on same sheet', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link with comment';
+      sheet.cell('A1').setHyperlink('https://example.com');
+      sheet.cell('A1').setComment('This is a link', 'Author');
+
+      const xlsx = workbookToXlsx(wb);
+
+      expect(hasFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+      const relsXml = getXmlFile(xlsx, 'xl/worksheets/_rels/sheet1.xml.rels');
+
+      expect(relsXml).toContain('hyperlink');
+      expect(relsXml).toContain('comments');
+    });
+  });
+
+  describe('Hyperlinks Import', () => {
+    it('should import external URL hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Click here';
+      sheet.cell('A1').setHyperlink('https://example.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('https://example.com');
+    });
+
+    it('should import hyperlink with tooltip', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link';
+      sheet.cell('A1').setHyperlink('https://example.com', 'Visit Example');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('https://example.com');
+      expect(imported?.cell('A1').hyperlink?.tooltip).toBe('Visit Example');
+    });
+
+    it('should import internal cell reference hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Go to B5';
+      sheet.cell('A1').setHyperlink('#B5');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('#B5');
+    });
+
+    it('should import multiple hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Google';
+      sheet.cell('A1').setHyperlink('https://google.com');
+      sheet.cell('A2').value = 'GitHub';
+      sheet.cell('A2').setHyperlink('https://github.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('https://google.com');
+      expect(imported?.cell('A2').hyperlink?.target).toBe('https://github.com');
+    });
+
+    it('should respect importHyperlinks option', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link';
+      sheet.cell('A1').setHyperlink('https://example.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx, { importHyperlinks: false });
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink).toBeUndefined();
+    });
+
+    it('should import hyperlinks with comments', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Link';
+      sheet.cell('A1').setHyperlink('https://example.com');
+      sheet.cell('A1').setComment('Comment on link', 'Author');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('https://example.com');
+      expect(imported?.cell('A1').comment?.text).toBe('Comment on link');
+    });
+
+    it('should import mailto hyperlinks', () => {
+      const wb = new Workbook();
+      const sheet = wb.addSheet('Sheet1');
+      sheet.cell('A1').value = 'Email';
+      sheet.cell('A1').setHyperlink('mailto:test@example.com');
+
+      const xlsx = workbookToXlsx(wb);
+      const { workbook } = xlsxToWorkbook(xlsx);
+
+      const imported = workbook.getSheet('Sheet1');
+      expect(imported?.cell('A1').hyperlink?.target).toBe('mailto:test@example.com');
+    });
+  });
 });

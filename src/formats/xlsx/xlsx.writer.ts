@@ -88,19 +88,27 @@ export function workbookToXlsx(workbook: Workbook, options: XlsxExportOptions = 
     files['xl/sharedStrings.xml'] = strToU8(ctx.sharedStrings.generateXml());
   }
 
-  // Worksheets and comments
+  // Worksheets, comments, and hyperlinks
   const sheets = workbook.sheets;
   for (let i = 0; i < sheets.length; i++) {
     const sheet = sheets[i];
     const sheetNum = i + 1;
-    files[`xl/worksheets/sheet${sheetNum}.xml`] = strToU8(generateWorksheet(sheet, ctx));
-    if (sheetHasComments(sheet)) {
+    const { xml: worksheetXml, hyperlinkRels } = generateWorksheet(sheet, ctx);
+    files[`xl/worksheets/sheet${sheetNum}.xml`] = strToU8(worksheetXml);
+
+    const hasComments = sheetHasComments(sheet);
+    const hasHyperlinks = hyperlinkRels.length > 0;
+
+    if (hasComments) {
       const commentsXml = generateComments(sheet, sheetNum);
       if (commentsXml) {
         files[`xl/comments${sheetNum}.xml`] = strToU8(commentsXml);
       }
+    }
 
-      const wsRels = generateWorksheetRels(sheetNum, true);
+    // Generate worksheet relationships for comments and/or hyperlinks
+    if (hasComments || hasHyperlinks) {
+      const wsRels = generateWorksheetRels(sheetNum, hasComments, hyperlinkRels);
       if (wsRels) {
         files[`xl/worksheets/_rels/sheet${sheetNum}.xml.rels`] = strToU8(wsRels);
       }
