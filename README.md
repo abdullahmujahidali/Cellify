@@ -37,6 +37,7 @@
 - **Cell Merging** - With overlap detection and validation
 - **Formulas** - Store and preserve formulas (evaluation coming soon)
 - **Cell Comments** - Add comments with author information
+- **Hyperlinks** - URLs, email links, and internal cell references
 - **Freeze Panes** - Lock rows/columns for scrolling
 - **Auto Filters** - Enable filtering on data ranges
 - **Type-Safe** - Built with TypeScript from the ground up
@@ -363,6 +364,27 @@ sheet.cell('A1').clearComment();
 sheet.cell('A1').comment = undefined;
 ```
 
+## Hyperlinks
+
+```typescript
+sheet.cell('A1').value = 'Visit Google';
+sheet.cell('A1').setHyperlink('https://google.com', 'Go to Google');
+
+sheet.cell('A2').value = 'Contact Us';
+sheet.cell('A2').setHyperlink('mailto:support@example.com');
+
+sheet.cell('A3').value = 'Go to Summary';
+sheet.cell('A3').setHyperlink('#Summary!A1', 'Jump to Summary sheet');
+
+const cell = sheet.cell('A1');
+if (cell.hyperlink) {
+  console.log(cell.hyperlink.target);  // 'https://google.com'
+  console.log(cell.hyperlink.tooltip); // 'Go to Google'
+}
+
+sheet.cell('A1').clearHyperlink();
+```
+
 ## Named Ranges
 
 ```typescript
@@ -449,6 +471,7 @@ const announcement = announceNavigation(cell);
 | `style` | Cell style object |
 | `formula` | Formula object |
 | `comment` | Cell comment with text and author |
+| `hyperlink` | Hyperlink with target URL and tooltip |
 | `address` | A1 notation address |
 | `type` | Value type |
 | `isMerged` | Is part of merge |
@@ -504,7 +527,6 @@ Available border styles: `thin`, `medium`, `thick`, `dashed`, `dotted`, `double`
 ## Planned Features
 
 - [ ] Formula evaluation engine
-- [ ] Hyperlinks
 - [ ] Data validation (dropdowns, constraints)
 - [ ] Conditional formatting export
 - [ ] Charts (basic)

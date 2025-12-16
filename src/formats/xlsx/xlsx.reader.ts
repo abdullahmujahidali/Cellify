@@ -177,6 +177,23 @@ export function xlsxToWorkbook(
     parseWorksheet(sheetXml, sheet, ctx);
     ctx.stats.sheetCount++;
 
+    const sheetRelsPath = sheetPath.replace(/\.xml$/, '.xml.rels').replace('worksheets/', 'worksheets/_rels/');
+    const sheetRelsXml = readFile(sheetRelsPath);
+    const hyperlinkTargets = new Map<string, string>(); // rId -> URL
+
+    if (sheetRelsXml) {
+      const rels = parseElements(sheetRelsXml, 'Relationship');
+      for (const rel of rels) {
+        const rId = getAttr(rel, 'Id');
+        const type = getAttr(rel, 'Type');
+        const target = getAttr(rel, 'Target');
+
+        if (type?.includes('hyperlink') && rId && target) {
+          hyperlinkTargets.set(rId, target);
+        }
+      }
+    }
+
     if (opts.importComments) {
       const sheetIndex = sheetInfo.sheetId;
       const commentPaths = [
@@ -184,8 +201,6 @@ export function xlsxToWorkbook(
         `xl/comments${i + 1}.xml`,
       ];
 
-      const sheetRelsPath = sheetPath.replace(/\.xml$/, '.xml.rels').replace('worksheets/', 'worksheets/_rels/');
-      const sheetRelsXml = readFile(sheetRelsPath);
       if (sheetRelsXml) {
         const rels = parseElements(sheetRelsXml, 'Relationship');
         for (const rel of rels) {
@@ -207,6 +222,11 @@ export function xlsxToWorkbook(
           break;
         }
       }
+    }
+
+    // Parse hyperlinks
+    if (opts.importHyperlinks) {
+      parseHyperlinks(sheetXml, sheet, hyperlinkTargets);
     }
 
     ctx.onProgress?.('sheets', i + 1, sheetsToImport.length);
@@ -586,6 +606,45 @@ function parseComments(xml: string, sheet: Sheet): void {
 }
 
 /**
+ * Parse hyperlinks from worksheet XML and apply to sheet
+ */
+function parseHyperlinks(
+  xml: string,
+  sheet: Sheet,
+  hyperlinkTargets: Map<string, string>
+): void {
+  const hyperlinkElements = parseElements(xml, 'hyperlink');
+
+  for (const hyperlinkEl of hyperlinkElements) {
+    const ref = getAttr(hyperlinkEl, 'ref');
+    if (!ref) continue;
+
+    const rId = getAttr(hyperlinkEl, 'r:id');
+    const location = getAttr(hyperlinkEl, 'location');
+    const tooltip = getAttr(hyperlinkEl, 'tooltip');
+    const display = getAttr(hyperlinkEl, 'display');
+
+    let target: string | undefined;
+
+    if (rId) {
+      target = hyperlinkTargets.get(rId);
+    } else if (location) {
+      target = `#${location}`;
+    }
+
+    if (!target) continue;
+    const { row, col } = a1ToAddress(ref);
+    const cell = sheet.cell(row, col);
+
+    if (display) {
+      cell.setHyperlink(target, tooltip);
+    } else {
+      cell.setHyperlink(target, tooltip);
+    }
+  }
+}
+
+/**
  * Parse cell value based on type attribute
  */
 function parseCellValue(
@@ -622,13 +681,10 @@ function parseCellValue(
     }
 
     case 'inlineStr': {
-      // Inline string
-      const tContent = getTextContent(cellInner, 't');
-      if (tContent !== undefined) return tContent;
-
-      // Rich text inline
+      // Inline string - check for <is> element first (standard format)
       const is = parseElement(cellInner, 'is');
       if (is) {
+        // Rich text with <r> runs
         const rElements = parseElements(is.inner, 'r');
         if (rElements.length > 0) {
           let text = '';
@@ -640,6 +696,10 @@ function parseCellValue(
         }
         return getTextContent(is.inner, 't') || '';
       }
+
+      const tContent = getTextContent(cellInner, 't');
+      if (tContent !== undefined) return tContent;
+
       return '';
     }
 

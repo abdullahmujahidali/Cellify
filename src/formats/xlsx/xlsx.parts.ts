@@ -126,8 +126,12 @@ export function generateWorkbookRels(ctx: XlsxBuildContext): string {
 
 /**
  * Generate xl/worksheets/sheetN.xml
+ * Returns both the XML and the hyperlink relationships needed for the worksheet rels file
  */
-export function generateWorksheet(sheet: Sheet, ctx: XlsxBuildContext): string {
+export function generateWorksheet(
+  sheet: Sheet,
+  ctx: XlsxBuildContext
+): { xml: string; hyperlinkRels: HyperlinkRelInfo[] } {
   const parts: string[] = [XML_DECLARATION];
 
   parts.push(`<worksheet xmlns="${NS.spreadsheetml}" xmlns:r="${NS.r}">`);
@@ -153,7 +157,12 @@ export function generateWorksheet(sheet: Sheet, ctx: XlsxBuildContext): string {
     parts.push(mergesXml);
   }
 
-  // Auto filter
+  const { xml: hyperlinksXml, relationships: hyperlinkRels } = generateHyperlinks(sheet);
+  if (hyperlinksXml) {
+    parts.push(hyperlinksXml);
+  }
+
+  // Auto filter (comes after hyperlinks in OOXML order)
   const autoFilterXml = generateAutoFilter(sheet);
   if (autoFilterXml) {
     parts.push(autoFilterXml);
@@ -161,7 +170,7 @@ export function generateWorksheet(sheet: Sheet, ctx: XlsxBuildContext): string {
 
   parts.push('</worksheet>');
 
-  return parts.join('\n');
+  return { xml: parts.join('\n'), hyperlinkRels };
 }
 
 /**
@@ -471,6 +480,74 @@ function generateAutoFilter(sheet: Sheet): string | null {
 }
 
 /**
+ * Hyperlink relationship info for worksheet relationships
+ */
+export interface HyperlinkRelInfo {
+  rId: string;
+  target: string;
+  isExternal: boolean;
+}
+
+/**
+ * Generate hyperlinks element and collect relationship info
+ * Returns both the XML and the relationships needed
+ */
+export function generateHyperlinks(
+  sheet: Sheet
+): { xml: string | null; relationships: HyperlinkRelInfo[] } {
+  const cells = getCellsWithHyperlinks(sheet);
+  if (cells.length === 0) {
+    return { xml: null, relationships: [] };
+  }
+
+  const parts: string[] = ['<hyperlinks>'];
+  const relationships: HyperlinkRelInfo[] = [];
+  let rIdCounter = 1;
+
+  for (const cell of cells) {
+    const hyperlink = cell.hyperlink!;
+    const ref = cellRef(cell.row, cell.col);
+    const target = hyperlink.target;
+
+    const isExternal =
+      target.startsWith('http://') ||
+      target.startsWith('https://') ||
+      target.startsWith('mailto:') ||
+      target.startsWith('file://');
+    const isInternalRef = target.startsWith('#') || target.match(/^[A-Z]+\d+$/i) || target.includes('!');
+
+    const attrs: string[] = [`ref="${ref}"`];
+
+    if (isExternal) {
+      const rId = `rId${rIdCounter++}`;
+      attrs.push(`r:id="${rId}"`);
+      relationships.push({ rId, target, isExternal: true });
+    } else if (isInternalRef) {
+      const location = target.startsWith('#') ? target.slice(1) : target;
+      attrs.push(`location="${escapeXml(location)}"`);
+    } else {
+      const rId = `rId${rIdCounter++}`;
+      attrs.push(`r:id="${rId}"`);
+      relationships.push({ rId, target, isExternal: true });
+    }
+
+    if (hyperlink.tooltip) {
+      attrs.push(`tooltip="${escapeXml(hyperlink.tooltip)}"`);
+    }
+
+    if (hyperlink.display) {
+      attrs.push(`display="${escapeXml(hyperlink.display)}"`);
+    }
+
+    parts.push(`<hyperlink ${attrs.join(' ')}/>`);
+  }
+
+  parts.push('</hyperlinks>');
+
+  return { xml: parts.join('\n'), relationships };
+}
+
+/**
  * Generate docProps/core.xml
  */
 export function generateCoreProperties(ctx: XlsxBuildContext): string {
@@ -525,6 +602,31 @@ export function sheetHasComments(sheet: Sheet): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Check if a sheet has any hyperlinks
+ */
+export function sheetHasHyperlinks(sheet: Sheet): boolean {
+  for (const cell of sheet.cells()) {
+    if (cell.hyperlink !== undefined) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Get all cells with hyperlinks from a sheet
+ */
+export function getCellsWithHyperlinks(sheet: Sheet): Cell[] {
+  const result: Cell[] = [];
+  for (const cell of sheet.cells()) {
+    if (cell.hyperlink !== undefined) {
+      result.push(cell);
+    }
+  }
+  return result;
 }
 
 /**
@@ -594,16 +696,37 @@ export function generateComments(sheet: Sheet, _sheetIndex: number): string {
 }
 
 /**
- * Generate worksheet relationships file for comments
+ * Generate worksheet relationships file for comments and hyperlinks
  */
-export function generateWorksheetRels(sheetIndex: number, hasComments: boolean): string | null {
-  if (!hasComments) {
+export function generateWorksheetRels(
+  sheetIndex: number,
+  hasComments: boolean,
+  hyperlinkRels: HyperlinkRelInfo[] = []
+): string | null {
+  if (!hasComments && hyperlinkRels.length === 0) {
     return null;
   }
 
   const parts: string[] = [XML_DECLARATION];
   parts.push(`<Relationships xmlns="${NS.packageRels}">`);
-  parts.push(`<Relationship Id="rId1" Type="${REL_TYPES.comments}" Target="../comments${sheetIndex}.xml"/>`);
+  let commentRId = 1;
+  if (hyperlinkRels.length > 0) {
+    const maxHyperlinkRId = Math.max(...hyperlinkRels.map(r => parseInt(r.rId.replace('rId', ''), 10)));
+    commentRId = maxHyperlinkRId + 1;
+  }
+
+  for (const rel of hyperlinkRels) {
+    parts.push(
+      `<Relationship Id="${rel.rId}" Type="${REL_TYPES.hyperlink}" Target="${escapeXml(rel.target)}" TargetMode="External"/>`
+    );
+  }
+
+  if (hasComments) {
+    parts.push(
+      `<Relationship Id="rId${commentRId}" Type="${REL_TYPES.comments}" Target="../comments${sheetIndex}.xml"/>`
+    );
+  }
+
   parts.push('</Relationships>');
 
   return parts.join('\n');

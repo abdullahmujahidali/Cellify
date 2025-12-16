@@ -27,6 +27,7 @@ npm run demo
 - **With Formulas** - Calculations that Excel will evaluate
 - **Multi-Sheet** - Workbook with multiple worksheets
 - **With Comments** - Cell comments with authors
+- **With Hyperlinks** - URLs, email links, and internal references
 
 ### Import Testing
 
