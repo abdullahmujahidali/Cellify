@@ -73,6 +73,60 @@ jobs:
           test -f dist/cjs/index.js
           test -f dist/types/index.d.ts
 
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin-wasm-pack
+
+      - name: Install wasm-pack
+        run: which wasm-pack || cargo install wasm-pack
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            wasm/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('wasm/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WASM module
+        run: npm run build:wasm
+
+      - name: Verify WASM build output
+        run: |
+          test -f src/formats/xlsx/wasm/cellify_wasm.js
+          test -f src/formats/xlsx/wasm/cellify_wasm_bg.wasm
+
+      - name: Run tests with WASM
+        run: npm test
+
   # # Publish to npm on release (manual trigger or tag)
   # publish:
   #   name: Publish to npm

@@ -4,6 +4,8 @@ import {
   Workbook,
   workbookToXlsxBlob,
   xlsxBlobToWorkbook,
+  initXlsxWasm,
+  isXlsxWasmReady,
 } from 'cellify';
 
 window.Workbook = Workbook;
@@ -39,6 +41,15 @@ function log(message, type = '') {
 window.log = log;
 
 log('Cellify loaded successfully', 'success');
+
+// Initialize WASM for faster XLSX parsing
+initXlsxWasm().then(wasmEnabled => {
+  if (wasmEnabled) {
+    log('WASM parser enabled - faster XLSX imports!', 'success');
+  } else {
+    log('WASM not available - using JavaScript parser', 'warning');
+  }
+});
 
 
 function download(blob, filename) {
@@ -1981,14 +1992,6 @@ function columnLetter(index) {
   }
   return letter;
 }
-
-function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 
 const textWidthCanvas = document.createElement('canvas');
 const textWidthCtx = textWidthCanvas.getContext('2d');

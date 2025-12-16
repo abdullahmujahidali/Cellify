@@ -24,3 +24,6 @@ export { workbookToXlsx, workbookToXlsxBlob } from './xlsx.writer.js';
 
 // Reader
 export { xlsxToWorkbook, xlsxBlobToWorkbook } from './xlsx.reader.js';
+
+// WASM Acceleration
+export { initXlsxWasm, isXlsxWasmReady } from './xlsx.parser.wasm.js';
