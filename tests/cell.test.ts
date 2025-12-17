@@ -126,6 +126,36 @@ describe('Cell', () => {
       expect(cell.style?.fill?.type).toBe('pattern');
       expect(cell.style?.alignment?.horizontal).toBe('center');
     });
+
+    it('should merge all style properties including fill, borders, numberFormat, and protection', () => {
+      const cell = new Cell(0, 0);
+
+      // Apply base styles
+      cell.applyStyle({
+        font: { bold: true },
+        fill: { type: 'pattern', pattern: 'solid', foregroundColor: '#FF0000' },
+        borders: { top: { style: 'thin', color: '#000000' } },
+        numberFormat: { formatCode: '0.00' },
+        protection: { locked: true },
+      });
+
+      // Apply override styles
+      cell.applyStyle({
+        fill: { type: 'pattern', foregroundColor: '#00FF00' },
+        borders: { bottom: { style: 'thick', color: '#000000' } },
+        numberFormat: { formatCode: '0.00%' },
+        protection: { hidden: true },
+      });
+
+      // Verify all properties merged correctly
+      expect(cell.style?.fill?.type).toBe('pattern');
+      expect(cell.style?.fill?.foregroundColor).toBe('#00FF00');
+      expect(cell.style?.borders?.top?.style).toBe('thin');
+      expect(cell.style?.borders?.bottom?.style).toBe('thick');
+      expect(cell.style?.numberFormat?.formatCode).toBe('0.00%');
+      expect(cell.style?.protection?.locked).toBe(true);
+      expect(cell.style?.protection?.hidden).toBe(true);
+    });
   });
 
   describe('hyperlink', () => {
@@ -266,6 +296,36 @@ describe('Cell', () => {
       expect(original.value).toBe('test');
       expect(original.style?.font?.bold).toBe(true);
     });
+
+    it('should clone cell with formula', () => {
+      const original = new Cell(0, 0);
+      original.setFormula('=A1+B1', 100);
+
+      const clone = original.clone();
+
+      expect(clone.formula?.formula).toBe('A1+B1');
+      expect(clone.formula?.result).toBe(100);
+    });
+
+    it('should clone cell with comment', () => {
+      const original = new Cell(0, 0, 'test');
+      original.setComment('Test comment', 'Author');
+
+      const clone = original.clone();
+
+      expect(clone.comment?.text).toBe('Test comment');
+      expect(clone.comment?.author).toBe('Author');
+    });
+
+    it('should clone cell with validation', () => {
+      const original = new Cell(0, 0);
+      original.setValidation({ type: 'whole', operator: 'between', formula1: 1, formula2: 100 });
+
+      const clone = original.clone();
+
+      expect(clone.validation?.type).toBe('whole');
+      expect(clone.validation?.operator).toBe('between');
+    });
   });
 
   describe('toJSON', () => {
@@ -281,6 +341,114 @@ describe('Cell', () => {
       expect(json.value).toBe('Hello');
       expect(json.type).toBe('string');
       expect(json.style).toEqual({ font: { bold: true } });
+    });
+
+    it('should serialize cell with formula to JSON', () => {
+      const cell = new Cell(0, 0);
+      cell.setFormula('=SUM(A1:A10)', 55);
+
+      const json = cell.toJSON();
+
+      expect(json.formula).toEqual({ formula: 'SUM(A1:A10)', result: 55 });
+    });
+
+    it('should serialize cell with hyperlink to JSON', () => {
+      const cell = new Cell(0, 0, 'Click me');
+      cell.setHyperlink('https://example.com', 'Example Site');
+
+      const json = cell.toJSON();
+
+      expect(json.hyperlink).toEqual({ target: 'https://example.com', tooltip: 'Example Site' });
+    });
+
+    it('should serialize cell with comment to JSON', () => {
+      const cell = new Cell(0, 0, 'Data');
+      cell.setComment('Important note', 'Admin');
+
+      const json = cell.toJSON();
+
+      expect(json.comment).toEqual({ text: 'Important note', author: 'Admin' });
+    });
+
+    it('should serialize cell with validation to JSON', () => {
+      const cell = new Cell(0, 0);
+      cell.setValidation({ type: 'list', formula1: 'A,B,C' });
+
+      const json = cell.toJSON();
+
+      expect(json.validation).toEqual({ type: 'list', formula1: 'A,B,C' });
+    });
+
+    it('should not include null value in JSON', () => {
+      const cell = new Cell(0, 0);
+
+      const json = cell.toJSON();
+
+      expect(json.value).toBeUndefined();
+      expect(json.type).toBeUndefined();
+    });
+
+    it('should serialize cell with all properties to JSON', () => {
+      const cell = new Cell(0, 0, 'Full');
+      cell.setFormula('=1+1');
+      cell.style = { font: { bold: true } };
+      cell.setHyperlink('https://test.com');
+      cell.setComment('Note');
+      cell.setValidation({ type: 'whole' });
+
+      const json = cell.toJSON();
+
+      expect(json.row).toBe(0);
+      expect(json.col).toBe(0);
+      expect(json.formula).toBeDefined();
+      expect(json.style).toBeDefined();
+      expect(json.hyperlink).toBeDefined();
+      expect(json.comment).toBeDefined();
+      expect(json.validation).toBeDefined();
+    });
+  });
+
+  describe('merge properties', () => {
+    it('should track merge master status', () => {
+      const cell = new Cell(0, 0, 'Merged');
+      expect(cell.isMergeMaster).toBe(false);
+      expect(cell.merge).toBeUndefined();
+
+      cell._setMerge({ startRow: 0, startCol: 0, endRow: 2, endCol: 2 });
+
+      expect(cell.isMergeMaster).toBe(true);
+      expect(cell.merge).toEqual({ startRow: 0, startCol: 0, endRow: 2, endCol: 2 });
+      expect(cell.isMerged).toBe(true);
+    });
+
+    it('should track merged slave status', () => {
+      const cell = new Cell(1, 1);
+      expect(cell.isMergedSlave).toBe(false);
+      expect(cell.mergedInto).toBeUndefined();
+
+      cell._setMergedInto({ row: 0, col: 0 });
+
+      expect(cell.isMergedSlave).toBe(true);
+      expect(cell.mergedInto).toEqual({ row: 0, col: 0 });
+      expect(cell.isMerged).toBe(true);
+    });
+
+    it('should serialize merge info to JSON', () => {
+      const masterCell = new Cell(0, 0, 'Master');
+      masterCell._setMerge({ startRow: 0, startCol: 0, endRow: 2, endCol: 2 });
+
+      const json = masterCell.toJSON();
+
+      expect(json.merge).toEqual({ startRow: 0, startCol: 0, endRow: 2, endCol: 2 });
+    });
+
+    it('should serialize mergedInto info to JSON', () => {
+      const slaveCell = new Cell(1, 1);
+      slaveCell._setMergedInto({ row: 0, col: 0 });
+
+      const json = slaveCell.toJSON();
+
+      expect(json.mergedInto).toEqual({ row: 0, col: 0 });
     });
   });
 });
