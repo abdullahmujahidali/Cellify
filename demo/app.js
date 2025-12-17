@@ -612,19 +612,28 @@ function displaySheet(sheet) {
 
       const formula = cell?.formula;
       const comment = cell?.comment;
+      const hyperlink = cell?.hyperlink;
       let titleParts = [];
       if (formula) titleParts.push(`Formula: =${escapeHtml(formula.formula)}`);
       if (comment) {
         const commentText = typeof comment.text === 'string' ? comment.text : comment.text.plainText || '';
         titleParts.push(`Comment: ${escapeHtml(commentText)}${comment.author ? ` - ${escapeHtml(comment.author)}` : ''}`);
       }
+      if (hyperlink) {
+        titleParts.push(`Link: ${escapeHtml(hyperlink.target)}${hyperlink.tooltip ? ` (${escapeHtml(hyperlink.tooltip)})` : ''}`);
+      }
       let title = titleParts.join('\n');
       let style = cellStyleToCss(cell?.style);
       let cssClass = comment ? 'has-comment' : '';
+      if (hyperlink) cssClass += ' has-hyperlink';
 
 
       if (formula && !cell?.style?.font?.color) {
         style += 'color: #059669; font-style: italic;';
+      }
+
+      if (hyperlink && !cell?.style?.font?.color) {
+        style += 'color: #2563eb; text-decoration: underline; cursor: pointer;';
       }
 
 
@@ -651,7 +660,7 @@ function displaySheet(sheet) {
   }
 
   html += `<div class="edit-hint">
-        <kbd>Click</kbd> select · <kbd>Double-click</kbd>/<kbd>Enter</kbd> edit · <kbd>Right-click</kbd> menu · <kbd>Ctrl+C/X/V</kbd> copy/cut/paste · <kbd>Ctrl+B/I</kbd> bold/italic · <kbd>Ctrl+Z</kbd> undo · <kbd>Del</kbd> clear
+        <kbd>Click</kbd> select · <kbd>Double-click</kbd>/<kbd>Enter</kbd> edit · <kbd>Ctrl+Click</kbd> open link · <kbd>Right-click</kbd> menu · <kbd>Ctrl+C/X/V</kbd> copy/cut/paste · <kbd>Ctrl+B/I</kbd> bold/italic · <kbd>Ctrl+Z</kbd> undo · <kbd>Del</kbd> clear
       </div>`;
 
   document.getElementById('preview').innerHTML = html;
@@ -1479,6 +1488,17 @@ function initCellEditHandlers() {
     if (td && !isEditing) {
       const row = parseInt(td.dataset.row);
       const col = parseInt(td.dataset.col);
+
+      // Ctrl+Click or Cmd+Click on hyperlink opens the link
+      if ((e.ctrlKey || e.metaKey) && td.classList.contains('has-hyperlink')) {
+        const sheet = window.currentWorkbook?.sheets[window.currentSheetIndex];
+        const cell = sheet?.getCell(row, col);
+        if (cell?.hyperlink?.target) {
+          window.open(cell.hyperlink.target, '_blank');
+          return;
+        }
+      }
+
       selectCell(row, col);
     }
   };
