@@ -158,6 +158,33 @@ describe('Cell', () => {
       cell.clearComment();
       expect(cell.comment).toBeUndefined();
     });
+
+    it('should set comment via setter with string', () => {
+      const cell = new Cell(0, 0);
+      cell.comment = 'Simple comment';
+      expect(cell.comment?.text).toBe('Simple comment');
+    });
+
+    it('should set comment via setter with CellComment object', () => {
+      const cell = new Cell(0, 0);
+      cell.comment = { text: 'Object comment', author: 'Test Author' };
+      expect(cell.comment?.text).toBe('Object comment');
+      expect(cell.comment?.author).toBe('Test Author');
+    });
+
+    it('should clear comment via setter with undefined', () => {
+      const cell = new Cell(0, 0);
+      cell.setComment('Note to clear');
+      cell.comment = undefined;
+      expect(cell.comment).toBeUndefined();
+    });
+
+    it('should clear comment via setter with null', () => {
+      const cell = new Cell(0, 0);
+      cell.setComment('Note to clear');
+      cell.comment = null;
+      expect(cell.comment).toBeUndefined();
+    });
   });
 
   describe('validation', () => {
