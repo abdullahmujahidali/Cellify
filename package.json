@@ -45,10 +45,22 @@
     "csv",
     "workbook",
     "cells",
-    "grid"
+    "grid",
+    "export",
+    "import",
+    "typescript",
+    "wasm"
   ],
-  "author": "",
+  "author": "Abdullah Mujahid Ali",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abdullahmujahidali/Cellify.git"
+  },
+  "homepage": "https://abdullahmujahidali.github.io/Cellify/",
+  "bugs": {
+    "url": "https://github.com/abdullahmujahidali/Cellify/issues"
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.15",
     "typescript": "^5.3.0",
