@@ -111,6 +111,17 @@ sheet.setEventsEnabled(true);
 
 Check event state with `sheet.eventsEnabled`.
 
+**Important:** When events are disabled, changes are also **not tracked in the undo history**. If you need undo support for bulk operations, use `sheet.batch()` instead:
+
+```typescript
+// This preserves undo capability as a single undo step
+sheet.batch(() => {
+  for (let i = 0; i < 10000; i++) {
+    sheet.cell(i, 0).value = i;
+  }
+});
+```
+
 ## Undo/Redo
 
 Cellify provides built-in undo/redo functionality:

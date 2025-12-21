@@ -302,7 +302,7 @@ describe('Sheet Undo/Redo', () => {
   });
 
   describe('undo/redo with events disabled', () => {
-    it('should still track changes when events are disabled', () => {
+    it('should not track changes in undo history when events are disabled', () => {
       const workbook = new Workbook();
       const sheet = workbook.addSheet('Test');
 
