@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-21
+
 ### Added
 
 - **Event System**
@@ -114,5 +116,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Zero dependencies for core (only fflate for compression)
   - Works in Node.js, Bun, Deno, and browsers
 
-[Unreleased]: https://github.com/abdullahmujahidali/Cellify/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/abdullahmujahidali/Cellify/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/abdullahmujahidali/Cellify/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/abdullahmujahidali/Cellify/releases/tag/v0.1.0
