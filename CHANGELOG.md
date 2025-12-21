@@ -24,6 +24,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `sheet.changeCount` property for pending change count
   - Each change has unique ID, type, address, old/new values, and timestamp
 
+- **Undo/Redo**
+  - `sheet.undo()` and `sheet.redo()` for reversing changes
+  - `sheet.canUndo` and `sheet.canRedo` to check availability
+  - `sheet.undoCount` and `sheet.redoCount` for history size
+  - `sheet.batch(() => {...})` to group changes as single undo step
+  - `sheet.clearHistory()` to clear undo/redo stacks
+  - `sheet.setMaxUndoHistory(n)` to limit history size (default: 100)
+
+- **Sorting**
+  - `sheet.sort(column, options)` for single column sorting
+  - `sheet.sortBy(columns, options)` for multi-column sorting
+  - Ascending/descending order support
+  - Header row preservation with `hasHeader` option
+  - Numeric sorting for string numbers with `numeric` option
+  - Case-insensitive sorting by default
+  - Date values sorted correctly
+  - Null values sorted to end
+  - Preserves cell styles, formulas, and comments when sorting
+  - Range-specific sorting with `range` option
+
+- **Filtering**
+  - `sheet.filter(column, criteria)` for single column filtering
+  - `sheet.filterBy(filters)` for multi-column filtering
+  - `sheet.clearFilter()` to remove all filters
+  - `sheet.clearColumnFilter(column)` to remove filter on specific column
+  - Criteria options: `equals`, `notEquals`, `contains`, `startsWith`, `endsWith`
+  - Numeric criteria: `greaterThan`, `lessThan`, `between`, `notBetween`
+  - Value list criteria: `in`, `notIn`
+  - Empty checks: `isEmpty`, `isNotEmpty`
+  - Custom filter function support
+  - Case-insensitive string matching
+  - `sheet.isRowFiltered(row)` to check if row is hidden by filter
+  - `sheet.activeFilters` to get current filter configuration
+  - `sheet.filteredRows` to get set of filtered row indices
+
 ## [0.1.0] - 2025-12-21
 
 ### Added

@@ -246,6 +246,40 @@ export interface AutoFilter {
 }
 
 /**
+ * Filter criteria for sheet.filter() method
+ */
+export interface FilterCriteria {
+  // Equality
+  equals?: string | number | boolean | null;
+  notEquals?: string | number | boolean | null;
+
+  // String operations (case-insensitive)
+  contains?: string;
+  notContains?: string;
+  startsWith?: string;
+  endsWith?: string;
+
+  // Numeric operations
+  greaterThan?: number;
+  greaterThanOrEqual?: number;
+  lessThan?: number;
+  lessThanOrEqual?: number;
+  between?: [number, number];
+  notBetween?: [number, number];
+
+  // Value list
+  in?: (string | number | boolean | null)[];
+  notIn?: (string | number | boolean | null)[];
+
+  // Empty checks
+  isEmpty?: boolean;
+  isNotEmpty?: boolean;
+
+  // Custom function
+  custom?: (value: string | number | boolean | Date | null) => boolean;
+}
+
+/**
  * Auto filter column configuration
  */
 export interface AutoFilterColumn {

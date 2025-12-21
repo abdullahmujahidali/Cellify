@@ -2,7 +2,7 @@
 sidebar_position: 10
 ---
 
-# Events & Change Tracking
+# Events, Change Tracking & Undo/Redo
 
 Cellify provides an event system for tracking changes to sheets. This enables real-time sync, undo/redo, and integration with collaboration libraries like Yjs or Liveblocks.
 
@@ -110,6 +110,68 @@ sheet.setEventsEnabled(true);
 ```
 
 Check event state with `sheet.eventsEnabled`.
+
+## Undo/Redo
+
+Cellify provides built-in undo/redo functionality:
+
+```typescript
+import { Workbook } from 'cellify';
+
+const workbook = new Workbook();
+const sheet = workbook.addSheet('Data');
+
+sheet.cell('A1').value = 'Hello';
+sheet.cell('A1').value = 'World';
+
+// Undo last change
+sheet.undo(); // A1 is now 'Hello'
+sheet.undo(); // A1 is now null
+
+// Redo undone changes
+sheet.redo(); // A1 is now 'Hello'
+sheet.redo(); // A1 is now 'World'
+```
+
+### Checking Undo/Redo State
+
+```typescript
+if (sheet.canUndo) {
+  sheet.undo();
+}
+
+if (sheet.canRedo) {
+  sheet.redo();
+}
+
+console.log(`${sheet.undoCount} undo steps available`);
+console.log(`${sheet.redoCount} redo steps available`);
+```
+
+### Batch Operations
+
+Group multiple changes into a single undo step:
+
+```typescript
+sheet.batch(() => {
+  sheet.cell('A1').value = 'Hello';
+  sheet.cell('B1').value = 'World';
+  sheet.cell('C1').value = '!';
+});
+
+// Single undo reverts all three changes
+sheet.undo();
+```
+
+### Managing History
+
+```typescript
+// Clear all undo/redo history
+sheet.clearHistory();
+
+// Limit history size (default: 100)
+sheet.setMaxUndoHistory(50);
+```
 
 ## Event Types
 
