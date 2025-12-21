@@ -79,3 +79,16 @@ export {
   iterateRange,
   getRangeDimensions,
 } from './range.types.js';
+
+export type {
+  SheetEvent,
+  CellChangeEvent,
+  CellStyleChangeEvent,
+  RangeChangeEvent,
+  CellAddedEvent,
+  CellDeletedEvent,
+  SheetEventType,
+  SheetEventHandler,
+  SheetEventMap,
+  ChangeRecord,
+} from './event.types.js';

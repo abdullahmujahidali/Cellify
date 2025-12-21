@@ -13,6 +13,15 @@ import type { CellStyle } from '../types/style.types.js';
 import { getCellValueType, addressToA1 } from '../types/cell.types.js';
 
 /**
+ * Callback type for cell change notifications
+ */
+export type CellChangeCallback = (
+  cell: Cell,
+  changeType: 'value' | 'style' | 'formula',
+  oldValue?: CellValue | CellStyle
+) => void;
+
+/**
  * Represents a single cell in a spreadsheet.
  *
  * Cells are the fundamental unit of data in Cellify. Each cell can hold:
@@ -33,6 +42,12 @@ export class Cell {
   private _validation: CellValidation | undefined;
   private _merge: MergeRange | undefined;
   private _mergedInto: CellAddress | undefined;
+
+  /**
+   * Optional callback for change notifications (set by Sheet)
+   * @internal
+   */
+  _onChange: CellChangeCallback | undefined;
 
   /**
    * The row index of this cell (0-based)
@@ -74,10 +89,15 @@ export class Cell {
    * Set the cell's value
    */
   set value(val: CellValue) {
+    const oldValue = this._value;
     this._value = val;
     // Clear formula when value is set directly
     if (this._formula) {
       this._formula = undefined;
+    }
+    // Notify of change
+    if (this._onChange && oldValue !== val) {
+      this._onChange(this, 'value', oldValue);
     }
   }
 
@@ -104,11 +124,15 @@ export class Cell {
    * @param result - Optional cached result value from Excel
    */
   setFormula(formulaText: string, result?: CellValue): this {
+    const oldValue = this._value;
     const text = formulaText.startsWith('=') ? formulaText.slice(1) : formulaText;
     this._formula = {
       formula: text,
       result: result,
     };
+    if (this._onChange) {
+      this._onChange(this, 'formula', oldValue);
+    }
     return this;
   }
 
@@ -131,17 +155,26 @@ export class Cell {
    * Set the cell's style (replaces existing style)
    */
   set style(style: CellStyle | undefined) {
+    const oldStyle = this._style;
     this._style = style;
+    // Notify of change
+    if (this._onChange && oldStyle !== style) {
+      this._onChange(this, 'style', oldStyle);
+    }
   }
 
   /**
    * Apply partial style updates (merges with existing style)
    */
   applyStyle(style: Partial<CellStyle>): this {
+    const oldStyle = this._style;
     if (!this._style) {
       this._style = { ...style };
     } else {
       this._style = this.mergeStyles(this._style, style);
+    }
+    if (this._onChange) {
+      this._onChange(this, 'style', oldStyle);
     }
     return this;
   }

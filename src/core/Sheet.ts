@@ -11,6 +11,15 @@ import type {
   AutoFilter,
 } from '../types/range.types.js';
 import { parseRangeReference, iterateRange, rangesOverlap } from '../types/range.types.js';
+import type {
+  SheetEventMap,
+  SheetEventHandler,
+  ChangeRecord,
+  CellChangeEvent,
+  CellStyleChangeEvent,
+  CellAddedEvent,
+  CellDeletedEvent,
+} from '../types/event.types.js';
 
 /**
  * Row configuration
@@ -121,6 +130,12 @@ export class Sheet {
   private _minCol = Infinity;
   private _maxCol = -Infinity;
 
+  // Event system
+  private _eventListeners: Map<string, Set<SheetEventHandler>> = new Map();
+  private _changes: ChangeRecord[] = [];
+  private _changeIdCounter = 0;
+  private _eventsEnabled = true;
+
   constructor(name: string) {
     this._name = name;
   }
@@ -171,6 +186,10 @@ export class Sheet {
       cell = new Cell(row, column);
       this._cells.set(key, cell);
       this.updateDimensions(row, column);
+      // Set up change callback
+      cell._onChange = this.handleCellChange.bind(this);
+      // Emit cell added event
+      this.emitCellAdded(cell);
     }
 
     return cell;
@@ -237,13 +256,16 @@ export class Sheet {
     }
 
     const key = cellKey(row, column);
-    const deleted = this._cells.delete(key);
+    const cell = this._cells.get(key);
 
-    if (deleted) {
+    if (cell) {
+      this.emitCellDeleted(cell);
+      this._cells.delete(key);
       this.recalculateDimensions();
+      return true;
     }
 
-    return deleted;
+    return false;
   }
 
   /**
@@ -747,5 +769,246 @@ export class Sheet {
       autoFilter: this._autoFilter,
       conditionalFormats: this._conditionalFormats,
     };
+  }
+
+  // ============ Event System ============
+
+  /**
+   * Subscribe to sheet events
+   *
+   * @param eventType - The event type to listen for ('cellChange', 'cellStyleChange', 'cellAdded', 'cellDeleted', '*')
+   * @param handler - The callback function to invoke when the event occurs
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.on('cellChange', (event) => {
+   *   console.log(`Cell ${event.address} changed from ${event.oldValue} to ${event.newValue}`);
+   * });
+   *
+   * // Listen to all events
+   * sheet.on('*', (event) => {
+   *   console.log(`Event: ${event.type}`);
+   * });
+   * ```
+   */
+  on<K extends keyof SheetEventMap>(eventType: K, handler: SheetEventHandler<SheetEventMap[K]>): this {
+    if (!this._eventListeners.has(eventType)) {
+      this._eventListeners.set(eventType, new Set());
+    }
+    this._eventListeners.get(eventType)!.add(handler as SheetEventHandler);
+    return this;
+  }
+
+  /**
+   * Unsubscribe from sheet events
+   *
+   * @param eventType - The event type to stop listening for
+   * @param handler - The callback function to remove
+   * @returns this for chaining
+   */
+  off<K extends keyof SheetEventMap>(eventType: K, handler: SheetEventHandler<SheetEventMap[K]>): this {
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      listeners.delete(handler as SheetEventHandler);
+    }
+    return this;
+  }
+
+  /**
+   * Enable or disable event emission
+   *
+   * @param enabled - Whether events should be emitted
+   *
+   * @example
+   * ```typescript
+   * // Disable events during bulk operations
+   * sheet.setEventsEnabled(false);
+   * for (let i = 0; i < 1000; i++) {
+   *   sheet.cell(i, 0).value = i;
+   * }
+   * sheet.setEventsEnabled(true);
+   * ```
+   */
+  setEventsEnabled(enabled: boolean): this {
+    this._eventsEnabled = enabled;
+    return this;
+  }
+
+  /**
+   * Check if events are currently enabled
+   */
+  get eventsEnabled(): boolean {
+    return this._eventsEnabled;
+  }
+
+  /**
+   * Get all tracked changes since last commit
+   *
+   * @returns Array of change records
+   *
+   * @example
+   * ```typescript
+   * sheet.cell('A1').value = 'Hello';
+   * sheet.cell('B1').value = 'World';
+   *
+   * const changes = sheet.getChanges();
+   * console.log(changes.length); // 2
+   *
+   * // Sync changes to server
+   * await syncChanges(changes);
+   *
+   * // Clear change buffer
+   * sheet.commitChanges();
+   * ```
+   */
+  getChanges(): readonly ChangeRecord[] {
+    return this._changes;
+  }
+
+  /**
+   * Clear the change buffer
+   *
+   * Call this after successfully syncing changes to indicate they've been persisted.
+   */
+  commitChanges(): this {
+    this._changes = [];
+    return this;
+  }
+
+  /**
+   * Get the number of pending changes
+   */
+  get changeCount(): number {
+    return this._changes.length;
+  }
+
+  /**
+   * Internal: Handle cell change notifications
+   */
+  private handleCellChange(cell: Cell, changeType: 'value' | 'style' | 'formula', oldValue?: CellValue | CellStyle): void {
+    if (!this._eventsEnabled) return;
+
+    const timestamp = Date.now();
+
+    if (changeType === 'value' || changeType === 'formula') {
+      // Record the change
+      this._changes.push({
+        id: `${this._name}-${++this._changeIdCounter}`,
+        type: changeType,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldValue: oldValue as CellValue,
+        newValue: cell.value,
+        timestamp,
+      });
+
+      // Emit event
+      const event: CellChangeEvent = {
+        type: 'cellChange',
+        sheetName: this._name,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldValue: oldValue as CellValue,
+        newValue: cell.value,
+        timestamp,
+      };
+      this.emit('cellChange', event);
+    } else if (changeType === 'style') {
+      // Record the change
+      this._changes.push({
+        id: `${this._name}-${++this._changeIdCounter}`,
+        type: 'style',
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldStyle: oldValue as CellStyle,
+        newStyle: cell.style,
+        timestamp,
+      });
+
+      // Emit event
+      const event: CellStyleChangeEvent = {
+        type: 'cellStyleChange',
+        sheetName: this._name,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldStyle: oldValue as CellStyle,
+        newStyle: cell.style,
+        timestamp,
+      };
+      this.emit('cellStyleChange', event);
+    }
+  }
+
+  /**
+   * Internal: Emit a cell added event
+   */
+  private emitCellAdded(cell: Cell): void {
+    if (!this._eventsEnabled) return;
+
+    const event: CellAddedEvent = {
+      type: 'cellAdded',
+      sheetName: this._name,
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      timestamp: Date.now(),
+    };
+    this.emit('cellAdded', event);
+  }
+
+  /**
+   * Internal: Emit a cell deleted event
+   */
+  private emitCellDeleted(cell: Cell): void {
+    if (!this._eventsEnabled) return;
+
+    const event: CellDeletedEvent = {
+      type: 'cellDeleted',
+      sheetName: this._name,
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      value: cell.value,
+      timestamp: Date.now(),
+    };
+
+    // Record the change
+    this._changes.push({
+      id: `${this._name}-${++this._changeIdCounter}`,
+      type: 'delete',
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      oldValue: cell.value,
+      timestamp: Date.now(),
+    });
+
+    this.emit('cellDeleted', event);
+  }
+
+  /**
+   * Internal: Emit an event to all listeners
+   */
+  private emit<K extends keyof SheetEventMap>(eventType: K, event: SheetEventMap[K]): void {
+    // Emit to specific listeners
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      for (const handler of listeners) {
+        handler(event);
+      }
+    }
+
+    // Emit to wildcard listeners
+    const wildcardListeners = this._eventListeners.get('*');
+    if (wildcardListeners) {
+      for (const handler of wildcardListeners) {
+        handler(event);
+      }
+    }
   }
 }
