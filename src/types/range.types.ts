@@ -1,4 +1,4 @@
-import type { CellAddress } from './cell.types.js';
+import type { CellAddress, CellValue } from './cell.types.js';
 import type { CellStyle } from './style.types.js';
 
 /**
@@ -243,6 +243,40 @@ export interface ConditionalFormatRule {
 export interface AutoFilter {
   range: RangeDefinition;
   columns?: AutoFilterColumn[];
+}
+
+/**
+ * Filter criteria for sheet.filter() method
+ */
+export interface FilterCriteria {
+  // Equality
+  equals?: string | number | boolean | null;
+  notEquals?: string | number | boolean | null;
+
+  // String operations (case-insensitive)
+  contains?: string;
+  notContains?: string;
+  startsWith?: string;
+  endsWith?: string;
+
+  // Numeric operations
+  greaterThan?: number;
+  greaterThanOrEqual?: number;
+  lessThan?: number;
+  lessThanOrEqual?: number;
+  between?: [number, number];
+  notBetween?: [number, number];
+
+  // Value list
+  in?: (string | number | boolean | null)[];
+  notIn?: (string | number | boolean | null)[];
+
+  // Empty checks
+  isEmpty?: boolean;
+  isNotEmpty?: boolean;
+
+  // Custom function
+  custom?: (value: CellValue) => boolean;
 }
 
 /**

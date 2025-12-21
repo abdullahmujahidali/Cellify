@@ -9,8 +9,18 @@ import type {
   RangeDefinition,
   ConditionalFormatRule,
   AutoFilter,
+  FilterCriteria,
 } from '../types/range.types.js';
 import { parseRangeReference, iterateRange, rangesOverlap } from '../types/range.types.js';
+import type {
+  SheetEventMap,
+  SheetEventHandler,
+  ChangeRecord,
+  CellChangeEvent,
+  CellStyleChangeEvent,
+  CellAddedEvent,
+  CellDeletedEvent,
+} from '../types/event.types.js';
 
 /**
  * Row configuration
@@ -121,6 +131,18 @@ export class Sheet {
   private _minCol = Infinity;
   private _maxCol = -Infinity;
 
+  // Event system
+  private _eventListeners: Map<string, Set<SheetEventHandler>> = new Map();
+  private _changes: ChangeRecord[] = [];
+  private _changeIdCounter = 0;
+  private _eventsEnabled = true;
+
+  // Undo/Redo system
+  private _undoStack: ChangeRecord[] = [];
+  private _redoStack: ChangeRecord[] = [];
+  private _maxUndoHistory = 100;
+  private _isUndoRedoOperation = false;
+
   constructor(name: string) {
     this._name = name;
   }
@@ -171,6 +193,10 @@ export class Sheet {
       cell = new Cell(row, column);
       this._cells.set(key, cell);
       this.updateDimensions(row, column);
+      // Set up change callback
+      cell._onChange = this.handleCellChange.bind(this);
+      // Emit cell added event
+      this.emitCellAdded(cell);
     }
 
     return cell;
@@ -237,13 +263,16 @@ export class Sheet {
     }
 
     const key = cellKey(row, column);
-    const deleted = this._cells.delete(key);
+    const cell = this._cells.get(key);
 
-    if (deleted) {
+    if (cell) {
+      this.emitCellDeleted(cell);
+      this._cells.delete(key);
       this.recalculateDimensions();
+      return true;
     }
 
-    return deleted;
+    return false;
   }
 
   /**
@@ -692,6 +721,610 @@ export class Sheet {
     return this;
   }
 
+  // ============ Sorting ============
+
+  /**
+   * Sort rows by the values in a column
+   *
+   * @param column - Column index (0-based) or letter (e.g., 'A') to sort by
+   * @param options - Sort options
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * // Sort by column A ascending
+   * sheet.sort('A');
+   *
+   * // Sort by column B descending
+   * sheet.sort('B', { descending: true });
+   *
+   * // Sort with header row (don't move first row)
+   * sheet.sort('A', { hasHeader: true });
+   *
+   * // Sort specific range
+   * sheet.sort('A', { range: 'A1:C10' });
+   * ```
+   */
+  sort(
+    column: number | string,
+    options: {
+      descending?: boolean;
+      hasHeader?: boolean;
+      range?: string | RangeDefinition;
+      numeric?: boolean;
+      caseSensitive?: boolean;
+    } = {}
+  ): this {
+    const {
+      descending = false,
+      hasHeader = false,
+      range,
+      numeric = false,
+      caseSensitive = false,
+    } = options;
+
+    // Convert column letter to index if needed
+    const colIndex = typeof column === 'string'
+      ? this.columnLetterToIndex(column)
+      : column;
+
+    // Determine range to sort
+    let sortRange: RangeDefinition;
+    if (range) {
+      sortRange = typeof range === 'string' ? parseRangeReference(range) : range;
+    } else {
+      const dims = this.dimensions;
+      if (!dims) return this;
+      sortRange = dims;
+    }
+
+    // Adjust for header row
+    const startRow = hasHeader ? sortRange.startRow + 1 : sortRange.startRow;
+    const endRow = sortRange.endRow;
+
+    if (startRow > endRow) return this;
+
+    // Collect rows with their data
+    const rows: { rowIndex: number; sortValue: CellValue; cells: Map<number, Cell> }[] = [];
+
+    for (let r = startRow; r <= endRow; r++) {
+      const sortCell = this.getCell(r, colIndex);
+      const sortValue = sortCell?.value ?? null;
+
+      const cells = new Map<number, Cell>();
+      for (let c = sortRange.startCol; c <= sortRange.endCol; c++) {
+        const cell = this.getCell(r, c);
+        if (cell) {
+          cells.set(c, cell.clone());
+        }
+      }
+
+      rows.push({ rowIndex: r, sortValue, cells });
+    }
+
+    // Sort rows
+    rows.sort((a, b) => {
+      const aVal = a.sortValue;
+      const bVal = b.sortValue;
+
+      let result = this.compareValues(aVal, bVal, numeric, caseSensitive);
+      return descending ? -result : result;
+    });
+
+    // Disable events during reordering
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      // Clear existing cells in range
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = sortRange.startCol; c <= sortRange.endCol; c++) {
+          const key = cellKey(r, c);
+          this._cells.delete(key);
+        }
+      }
+
+      // Place sorted rows
+      for (let i = 0; i < rows.length; i++) {
+        const targetRow = startRow + i;
+        const { cells } = rows[i];
+
+        for (const [col, cell] of cells) {
+          const newCell = new Cell(targetRow, col, cell.value);
+          if (cell.style) newCell.style = cell.style;
+          if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+          if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+          if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+
+          newCell._onChange = this.handleCellChange.bind(this);
+          this._cells.set(cellKey(targetRow, col), newCell);
+        }
+      }
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Sort rows by multiple columns
+   *
+   * @param columns - Array of column sort specifications
+   * @param options - Sort options
+   *
+   * @example
+   * ```typescript
+   * // Sort by column A, then by column B descending
+   * sheet.sortBy([
+   *   { column: 'A' },
+   *   { column: 'B', descending: true }
+   * ]);
+   * ```
+   */
+  sortBy(
+    columns: Array<{
+      column: number | string;
+      descending?: boolean;
+      numeric?: boolean;
+    }>,
+    options: {
+      hasHeader?: boolean;
+      range?: string | RangeDefinition;
+      caseSensitive?: boolean;
+    } = {}
+  ): this {
+    const { hasHeader = false, range, caseSensitive = false } = options;
+
+    // Convert column letters to indices
+    const sortColumns = columns.map((c) => ({
+      colIndex: typeof c.column === 'string' ? this.columnLetterToIndex(c.column) : c.column,
+      descending: c.descending ?? false,
+      numeric: c.numeric ?? false,
+    }));
+
+    // Determine range to sort
+    let sortRange: RangeDefinition;
+    if (range) {
+      sortRange = typeof range === 'string' ? parseRangeReference(range) : range;
+    } else {
+      const dims = this.dimensions;
+      if (!dims) return this;
+      sortRange = dims;
+    }
+
+    const startRow = hasHeader ? sortRange.startRow + 1 : sortRange.startRow;
+    const endRow = sortRange.endRow;
+
+    if (startRow > endRow) return this;
+
+    // Collect rows
+    const rows: { rowIndex: number; sortValues: CellValue[]; cells: Map<number, Cell> }[] = [];
+
+    for (let r = startRow; r <= endRow; r++) {
+      const sortValues = sortColumns.map((sc) => {
+        const cell = this.getCell(r, sc.colIndex);
+        return cell?.value ?? null;
+      });
+
+      const cells = new Map<number, Cell>();
+      for (let c = sortRange.startCol; c <= sortRange.endCol; c++) {
+        const cell = this.getCell(r, c);
+        if (cell) {
+          cells.set(c, cell.clone());
+        }
+      }
+
+      rows.push({ rowIndex: r, sortValues, cells });
+    }
+
+    // Sort with multi-column comparison
+    rows.sort((a, b) => {
+      for (let i = 0; i < sortColumns.length; i++) {
+        const aVal = a.sortValues[i];
+        const bVal = b.sortValues[i];
+        const { descending, numeric } = sortColumns[i];
+
+        const result = this.compareValues(aVal, bVal, numeric, caseSensitive);
+        if (result !== 0) {
+          return descending ? -result : result;
+        }
+      }
+      return 0;
+    });
+
+    // Disable events and reorder
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = sortRange.startCol; c <= sortRange.endCol; c++) {
+          this._cells.delete(cellKey(r, c));
+        }
+      }
+
+      for (let i = 0; i < rows.length; i++) {
+        const targetRow = startRow + i;
+        const { cells } = rows[i];
+
+        for (const [col, cell] of cells) {
+          const newCell = new Cell(targetRow, col, cell.value);
+          if (cell.style) newCell.style = cell.style;
+          if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+          if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+          if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+
+          newCell._onChange = this.handleCellChange.bind(this);
+          this._cells.set(cellKey(targetRow, col), newCell);
+        }
+      }
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Compare two cell values for sorting
+   */
+  private compareValues(a: CellValue, b: CellValue, numeric: boolean, caseSensitive: boolean): number {
+    // Handle nulls - always sort to end
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+
+    // Numeric comparison
+    if (numeric || (typeof a === 'number' && typeof b === 'number')) {
+      const numA = typeof a === 'number' ? a : parseFloat(String(a));
+      const numB = typeof b === 'number' ? b : parseFloat(String(b));
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+    }
+
+    // Date comparison
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() - b.getTime();
+    }
+
+    // String comparison
+    const strA = String(a);
+    const strB = String(b);
+
+    if (caseSensitive) {
+      return strA.localeCompare(strB);
+    }
+    return strA.toLowerCase().localeCompare(strB.toLowerCase());
+  }
+
+  /**
+   * Convert column letter to index
+   */
+  private columnLetterToIndex(letter: string): number {
+    let index = 0;
+    const upper = letter.toUpperCase();
+    for (let i = 0; i < upper.length; i++) {
+      index = index * 26 + (upper.charCodeAt(i) - 64);
+    }
+    return index - 1;
+  }
+
+  // ============ Filtering ============
+
+  // Track filtered (hidden) rows
+  private _filteredRows: Set<number> = new Set();
+  private _activeFilters: Map<number, FilterCriteria> = new Map();
+
+  /**
+   * Filter rows based on column values
+   *
+   * @param column - Column index (0-based) or letter (e.g., 'A') to filter by
+   * @param criteria - Filter criteria
+   * @param options - Filter options
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * // Show only rows where column A equals 'Active'
+   * sheet.filter('A', { equals: 'Active' });
+   *
+   * // Show rows where column B contains 'test'
+   * sheet.filter('B', { contains: 'test' });
+   *
+   * // Show rows where column C is greater than 100
+   * sheet.filter('C', { greaterThan: 100 });
+   *
+   * // Custom filter function
+   * sheet.filter('D', { custom: (value) => value !== null && value > 0 });
+   * ```
+   */
+  filter(
+    column: number | string,
+    criteria: FilterCriteria,
+    options: {
+      hasHeader?: boolean;
+      range?: string | RangeDefinition;
+    } = {}
+  ): this {
+    const { hasHeader = false, range } = options;
+
+    const colIndex = typeof column === 'string'
+      ? this.columnLetterToIndex(column)
+      : column;
+
+    // Store the active filter
+    this._activeFilters.set(colIndex, criteria);
+
+    // Apply all filters
+    this.applyFilters(hasHeader, range);
+
+    return this;
+  }
+
+  /**
+   * Filter rows based on multiple column criteria
+   *
+   * @param filters - Array of column filter specifications
+   * @param options - Filter options
+   *
+   * @example
+   * ```typescript
+   * sheet.filterBy([
+   *   { column: 'A', criteria: { equals: 'Active' } },
+   *   { column: 'B', criteria: { greaterThan: 100 } }
+   * ]);
+   * ```
+   */
+  filterBy(
+    filters: Array<{
+      column: number | string;
+      criteria: FilterCriteria;
+    }>,
+    options: {
+      hasHeader?: boolean;
+      range?: string | RangeDefinition;
+    } = {}
+  ): this {
+    const { hasHeader = false, range } = options;
+
+    // Store all filters
+    for (const filter of filters) {
+      const colIndex = typeof filter.column === 'string'
+        ? this.columnLetterToIndex(filter.column)
+        : filter.column;
+      this._activeFilters.set(colIndex, filter.criteria);
+    }
+
+    // Apply all filters
+    this.applyFilters(hasHeader, range);
+
+    return this;
+  }
+
+  /**
+   * Clear all filters and show all rows
+   */
+  clearFilter(): this {
+    this._activeFilters.clear();
+
+    // Show all filtered rows
+    for (const row of this._filteredRows) {
+      this.showRow(row);
+    }
+    this._filteredRows.clear();
+
+    return this;
+  }
+
+  /**
+   * Clear filter on a specific column
+   */
+  clearColumnFilter(column: number | string): this {
+    const colIndex = typeof column === 'string'
+      ? this.columnLetterToIndex(column)
+      : column;
+
+    this._activeFilters.delete(colIndex);
+
+    // Re-apply remaining filters
+    if (this._activeFilters.size > 0) {
+      // Show all rows first, then re-apply filters
+      for (const row of this._filteredRows) {
+        this.showRow(row);
+      }
+      this._filteredRows.clear();
+      this.applyFilters(false);
+    } else {
+      // No more filters, show all rows
+      this.clearFilter();
+    }
+
+    return this;
+  }
+
+  /**
+   * Get active filters
+   */
+  get activeFilters(): ReadonlyMap<number, FilterCriteria> {
+    return this._activeFilters;
+  }
+
+  /**
+   * Check if a row is currently filtered out (hidden by filter)
+   */
+  isRowFiltered(row: number): boolean {
+    return this._filteredRows.has(row);
+  }
+
+  /**
+   * Get all filtered row indices
+   */
+  get filteredRows(): ReadonlySet<number> {
+    return this._filteredRows;
+  }
+
+  /**
+   * Internal: Apply all active filters to the sheet
+   */
+  private applyFilters(hasHeader: boolean, range?: string | RangeDefinition): void {
+    // Determine range to filter
+    let filterRange: RangeDefinition;
+    if (range) {
+      filterRange = typeof range === 'string' ? parseRangeReference(range) : range;
+    } else {
+      const dims = this.dimensions;
+      if (!dims) return;
+      filterRange = dims;
+    }
+
+    const startRow = hasHeader ? filterRange.startRow + 1 : filterRange.startRow;
+    const endRow = filterRange.endRow;
+
+    // Show all rows first
+    for (const row of this._filteredRows) {
+      this.showRow(row);
+    }
+    this._filteredRows.clear();
+
+    // Apply each filter
+    for (let r = startRow; r <= endRow; r++) {
+      let matches = true;
+
+      for (const [colIndex, criteria] of this._activeFilters) {
+        const cell = this.getCell(r, colIndex);
+        const value = cell?.value ?? null;
+
+        if (!this.matchesCriteria(value, criteria)) {
+          matches = false;
+          break;
+        }
+      }
+
+      if (!matches) {
+        this.hideRow(r);
+        this._filteredRows.add(r);
+      }
+    }
+  }
+
+  /**
+   * Internal: Check if a value matches filter criteria
+   */
+  private matchesCriteria(value: CellValue, criteria: FilterCriteria): boolean {
+    // Custom function takes precedence
+    if (criteria.custom) {
+      return criteria.custom(value);
+    }
+
+    // isEmpty
+    if (criteria.isEmpty !== undefined) {
+      const isEmpty = value === null || value === undefined || value === '';
+      return criteria.isEmpty ? isEmpty : !isEmpty;
+    }
+
+    // isNotEmpty
+    if (criteria.isNotEmpty !== undefined) {
+      const isEmpty = value === null || value === undefined || value === '';
+      return criteria.isNotEmpty ? !isEmpty : isEmpty;
+    }
+
+    // equals
+    if (criteria.equals !== undefined) {
+      if (typeof criteria.equals === 'string' && typeof value === 'string') {
+        return value.toLowerCase() === criteria.equals.toLowerCase();
+      }
+      return value === criteria.equals;
+    }
+
+    // notEquals
+    if (criteria.notEquals !== undefined) {
+      if (typeof criteria.notEquals === 'string' && typeof value === 'string') {
+        return value.toLowerCase() !== criteria.notEquals.toLowerCase();
+      }
+      return value !== criteria.notEquals;
+    }
+
+    // String operations
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase();
+
+      if (criteria.contains !== undefined) {
+        return lowerValue.includes(criteria.contains.toLowerCase());
+      }
+
+      if (criteria.notContains !== undefined) {
+        return !lowerValue.includes(criteria.notContains.toLowerCase());
+      }
+
+      if (criteria.startsWith !== undefined) {
+        return lowerValue.startsWith(criteria.startsWith.toLowerCase());
+      }
+
+      if (criteria.endsWith !== undefined) {
+        return lowerValue.endsWith(criteria.endsWith.toLowerCase());
+      }
+    }
+
+    // Numeric operations
+    const numValue = typeof value === 'number' ? value : parseFloat(String(value));
+    if (!isNaN(numValue)) {
+      if (criteria.greaterThan !== undefined) {
+        return numValue > criteria.greaterThan;
+      }
+
+      if (criteria.greaterThanOrEqual !== undefined) {
+        return numValue >= criteria.greaterThanOrEqual;
+      }
+
+      if (criteria.lessThan !== undefined) {
+        return numValue < criteria.lessThan;
+      }
+
+      if (criteria.lessThanOrEqual !== undefined) {
+        return numValue <= criteria.lessThanOrEqual;
+      }
+
+      if (criteria.between !== undefined) {
+        const [min, max] = criteria.between;
+        return numValue >= min && numValue <= max;
+      }
+
+      if (criteria.notBetween !== undefined) {
+        const [min, max] = criteria.notBetween;
+        return numValue < min || numValue > max;
+      }
+    }
+
+    // in / notIn (value list)
+    if (criteria.in !== undefined) {
+      return criteria.in.some((v: string | number | boolean | null) => {
+        if (typeof v === 'string' && typeof value === 'string') {
+          return v.toLowerCase() === value.toLowerCase();
+        }
+        return v === value;
+      });
+    }
+
+    if (criteria.notIn !== undefined) {
+      return !criteria.notIn.some((v: string | number | boolean | null) => {
+        if (typeof v === 'string' && typeof value === 'string') {
+          return v.toLowerCase() === value.toLowerCase();
+        }
+        return v === value;
+      });
+    }
+
+    // Default: if no criteria matched, include the row
+    return true;
+  }
+
   // ============ Utility Methods ============
 
   /**
@@ -747,5 +1380,487 @@ export class Sheet {
       autoFilter: this._autoFilter,
       conditionalFormats: this._conditionalFormats,
     };
+  }
+
+  // ============ Event System ============
+
+  /**
+   * Subscribe to sheet events
+   *
+   * @param eventType - The event type to listen for ('cellChange', 'cellStyleChange', 'cellAdded', 'cellDeleted', '*')
+   * @param handler - The callback function to invoke when the event occurs
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.on('cellChange', (event) => {
+   *   console.log(`Cell ${event.address} changed from ${event.oldValue} to ${event.newValue}`);
+   * });
+   *
+   * // Listen to all events
+   * sheet.on('*', (event) => {
+   *   console.log(`Event: ${event.type}`);
+   * });
+   * ```
+   */
+  on<K extends keyof SheetEventMap>(eventType: K, handler: SheetEventHandler<SheetEventMap[K]>): this {
+    if (!this._eventListeners.has(eventType)) {
+      this._eventListeners.set(eventType, new Set());
+    }
+    this._eventListeners.get(eventType)!.add(handler as SheetEventHandler);
+    return this;
+  }
+
+  /**
+   * Unsubscribe from sheet events
+   *
+   * @param eventType - The event type to stop listening for
+   * @param handler - The callback function to remove
+   * @returns this for chaining
+   */
+  off<K extends keyof SheetEventMap>(eventType: K, handler: SheetEventHandler<SheetEventMap[K]>): this {
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      listeners.delete(handler as SheetEventHandler);
+    }
+    return this;
+  }
+
+  /**
+   * Enable or disable event emission
+   *
+   * @param enabled - Whether events should be emitted
+   *
+   * @example
+   * ```typescript
+   * // Disable events during bulk operations
+   * sheet.setEventsEnabled(false);
+   * for (let i = 0; i < 1000; i++) {
+   *   sheet.cell(i, 0).value = i;
+   * }
+   * sheet.setEventsEnabled(true);
+   * ```
+   */
+  setEventsEnabled(enabled: boolean): this {
+    this._eventsEnabled = enabled;
+    return this;
+  }
+
+  /**
+   * Check if events are currently enabled
+   */
+  get eventsEnabled(): boolean {
+    return this._eventsEnabled;
+  }
+
+  /**
+   * Get all tracked changes since last commit
+   *
+   * @returns Array of change records
+   *
+   * @example
+   * ```typescript
+   * sheet.cell('A1').value = 'Hello';
+   * sheet.cell('B1').value = 'World';
+   *
+   * const changes = sheet.getChanges();
+   * console.log(changes.length); // 2
+   *
+   * // Sync changes to server
+   * await syncChanges(changes);
+   *
+   * // Clear change buffer
+   * sheet.commitChanges();
+   * ```
+   */
+  getChanges(): readonly ChangeRecord[] {
+    return this._changes;
+  }
+
+  /**
+   * Clear the change buffer
+   *
+   * Call this after successfully syncing changes to indicate they've been persisted.
+   */
+  commitChanges(): this {
+    this._changes = [];
+    return this;
+  }
+
+  /**
+   * Get the number of pending changes
+   */
+  get changeCount(): number {
+    return this._changes.length;
+  }
+
+  // ============ Undo/Redo ============
+
+  /**
+   * Check if there are changes that can be undone
+   */
+  get canUndo(): boolean {
+    return this._undoStack.length > 0;
+  }
+
+  /**
+   * Check if there are changes that can be redone
+   */
+  get canRedo(): boolean {
+    return this._redoStack.length > 0;
+  }
+
+  /**
+   * Get the number of undo steps available
+   */
+  get undoCount(): number {
+    return this._undoStack.length;
+  }
+
+  /**
+   * Get the number of redo steps available
+   */
+  get redoCount(): number {
+    return this._redoStack.length;
+  }
+
+  /**
+   * Undo the last change
+   *
+   * @returns true if undo was successful, false if nothing to undo
+   *
+   * @example
+   * ```typescript
+   * sheet.cell('A1').value = 'Hello';
+   * sheet.cell('A1').value = 'World';
+   *
+   * sheet.undo(); // A1 is now 'Hello'
+   * sheet.undo(); // A1 is now null
+   * ```
+   */
+  undo(): boolean {
+    if (!this.canUndo) {
+      return false;
+    }
+
+    const change = this._undoStack.pop()!;
+    this._isUndoRedoOperation = true;
+
+    try {
+      // Check if this is a batch change
+      const batchChanges = (change as ChangeRecord & { _batchChanges?: ChangeRecord[] })._batchChanges;
+
+      if (batchChanges) {
+        // Undo batch changes in reverse order
+        for (let i = batchChanges.length - 1; i >= 0; i--) {
+          const batchChange = batchChanges[i];
+          this.applyUndoChange(batchChange);
+        }
+      } else {
+        this.applyUndoChange(change);
+      }
+
+      // Push to redo stack
+      this._redoStack.push(change);
+
+      return true;
+    } finally {
+      this._isUndoRedoOperation = false;
+    }
+  }
+
+  /**
+   * Internal: Apply a single undo change
+   */
+  private applyUndoChange(change: ChangeRecord): void {
+    if (change.type === 'value' || change.type === 'formula') {
+      const cell = this.cell(change.row, change.col);
+      cell.value = change.oldValue ?? null;
+    } else if (change.type === 'style') {
+      const cell = this.cell(change.row, change.col);
+      cell.style = change.oldStyle;
+    }
+  }
+
+  /**
+   * Redo the last undone change
+   *
+   * @returns true if redo was successful, false if nothing to redo
+   *
+   * @example
+   * ```typescript
+   * sheet.cell('A1').value = 'Hello';
+   * sheet.undo(); // A1 is now null
+   * sheet.redo(); // A1 is now 'Hello'
+   * ```
+   */
+  redo(): boolean {
+    if (!this.canRedo) {
+      return false;
+    }
+
+    const change = this._redoStack.pop()!;
+    this._isUndoRedoOperation = true;
+
+    try {
+      // Check if this is a batch change
+      const batchChanges = (change as ChangeRecord & { _batchChanges?: ChangeRecord[] })._batchChanges;
+
+      if (batchChanges) {
+        // Redo batch changes in order
+        for (const batchChange of batchChanges) {
+          this.applyRedoChange(batchChange);
+        }
+      } else {
+        this.applyRedoChange(change);
+      }
+
+      // Push back to undo stack
+      this._undoStack.push(change);
+
+      return true;
+    } finally {
+      this._isUndoRedoOperation = false;
+    }
+  }
+
+  /**
+   * Internal: Apply a single redo change
+   */
+  private applyRedoChange(change: ChangeRecord): void {
+    if (change.type === 'value' || change.type === 'formula') {
+      const cell = this.cell(change.row, change.col);
+      cell.value = change.newValue ?? null;
+    } else if (change.type === 'style') {
+      const cell = this.cell(change.row, change.col);
+      cell.style = change.newStyle;
+    }
+  }
+
+  /**
+   * Clear the undo and redo history
+   *
+   * Useful after saving or when you want to prevent undoing past a certain point.
+   */
+  clearHistory(): this {
+    this._undoStack = [];
+    this._redoStack = [];
+    return this;
+  }
+
+  /**
+   * Set the maximum number of undo steps to keep
+   *
+   * @param max - Maximum history size (default: 100)
+   */
+  setMaxUndoHistory(max: number): this {
+    this._maxUndoHistory = max;
+    // Trim if necessary
+    while (this._undoStack.length > max) {
+      this._undoStack.shift();
+    }
+    return this;
+  }
+
+  /**
+   * Execute a batch of operations as a single undo step
+   *
+   * @param fn - Function containing the batch operations
+   *
+   * @example
+   * ```typescript
+   * sheet.batch(() => {
+   *   sheet.cell('A1').value = 'Hello';
+   *   sheet.cell('B1').value = 'World';
+   *   sheet.cell('C1').value = '!';
+   * });
+   *
+   * // Single undo reverts all three changes
+   * sheet.undo();
+   * ```
+   */
+  batch(fn: () => void): this {
+    const startIndex = this._undoStack.length;
+
+    fn();
+
+    // Collect all changes made during the batch
+    const batchChanges = this._undoStack.splice(startIndex);
+
+    if (batchChanges.length > 0) {
+      // Create a composite change record
+      const compositeChange: ChangeRecord = {
+        id: `${this._name}-batch-${++this._changeIdCounter}`,
+        type: 'value',
+        address: batchChanges[0].address,
+        row: batchChanges[0].row,
+        col: batchChanges[0].col,
+        oldValue: batchChanges[0].oldValue,
+        newValue: batchChanges[batchChanges.length - 1].newValue,
+        timestamp: Date.now(),
+      };
+
+      // Store batch changes for proper undo
+      (compositeChange as ChangeRecord & { _batchChanges?: ChangeRecord[] })._batchChanges = batchChanges;
+
+      this._undoStack.push(compositeChange);
+    }
+
+    return this;
+  }
+
+  /**
+   * Internal: Handle cell change notifications
+   */
+  private handleCellChange(cell: Cell, changeType: 'value' | 'style' | 'formula', oldValue?: CellValue | CellStyle): void {
+    if (!this._eventsEnabled) return;
+
+    const timestamp = Date.now();
+
+    if (changeType === 'value' || changeType === 'formula') {
+      const changeRecord: ChangeRecord = {
+        id: `${this._name}-${++this._changeIdCounter}`,
+        type: changeType,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldValue: oldValue as CellValue,
+        newValue: cell.value,
+        timestamp,
+      };
+
+      // Record the change
+      this._changes.push(changeRecord);
+
+      // Add to undo stack (unless this is an undo/redo operation)
+      if (!this._isUndoRedoOperation) {
+        this._undoStack.push(changeRecord);
+        // Limit undo history
+        if (this._undoStack.length > this._maxUndoHistory) {
+          this._undoStack.shift();
+        }
+        // Clear redo stack on new change
+        this._redoStack = [];
+      }
+
+      // Emit event
+      const event: CellChangeEvent = {
+        type: 'cellChange',
+        sheetName: this._name,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldValue: oldValue as CellValue,
+        newValue: cell.value,
+        timestamp,
+      };
+      this.emit('cellChange', event);
+    } else if (changeType === 'style') {
+      const changeRecord: ChangeRecord = {
+        id: `${this._name}-${++this._changeIdCounter}`,
+        type: 'style',
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldStyle: oldValue as CellStyle,
+        newStyle: cell.style,
+        timestamp,
+      };
+
+      // Record the change
+      this._changes.push(changeRecord);
+
+      // Add to undo stack (unless this is an undo/redo operation)
+      if (!this._isUndoRedoOperation) {
+        this._undoStack.push(changeRecord);
+        if (this._undoStack.length > this._maxUndoHistory) {
+          this._undoStack.shift();
+        }
+        this._redoStack = [];
+      }
+
+      // Emit event
+      const event: CellStyleChangeEvent = {
+        type: 'cellStyleChange',
+        sheetName: this._name,
+        address: cell.address,
+        row: cell.row,
+        col: cell.col,
+        oldStyle: oldValue as CellStyle,
+        newStyle: cell.style,
+        timestamp,
+      };
+      this.emit('cellStyleChange', event);
+    }
+  }
+
+  /**
+   * Internal: Emit a cell added event
+   */
+  private emitCellAdded(cell: Cell): void {
+    if (!this._eventsEnabled) return;
+
+    const event: CellAddedEvent = {
+      type: 'cellAdded',
+      sheetName: this._name,
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      timestamp: Date.now(),
+    };
+    this.emit('cellAdded', event);
+  }
+
+  /**
+   * Internal: Emit a cell deleted event
+   */
+  private emitCellDeleted(cell: Cell): void {
+    if (!this._eventsEnabled) return;
+
+    const timestamp = Date.now();
+
+    const event: CellDeletedEvent = {
+      type: 'cellDeleted',
+      sheetName: this._name,
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      value: cell.value,
+      timestamp,
+    };
+
+    // Record the change
+    this._changes.push({
+      id: `${this._name}-${++this._changeIdCounter}`,
+      type: 'delete',
+      address: cell.address,
+      row: cell.row,
+      col: cell.col,
+      oldValue: cell.value,
+      timestamp,
+    });
+
+    this.emit('cellDeleted', event);
+  }
+
+  /**
+   * Internal: Emit an event to all listeners
+   */
+  private emit<K extends keyof SheetEventMap>(eventType: K, event: SheetEventMap[K]): void {
+    // Emit to specific listeners
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      for (const handler of listeners) {
+        handler(event);
+      }
+    }
+
+    // Emit to wildcard listeners
+    const wildcardListeners = this._eventListeners.get('*');
+    if (wildcardListeners) {
+      for (const handler of wildcardListeners) {
+        handler(event);
+      }
+    }
   }
 }
