@@ -1,4 +1,4 @@
-import type { CellAddress } from './cell.types.js';
+import type { CellAddress, CellValue } from './cell.types.js';
 import type { CellStyle } from './style.types.js';
 
 /**
@@ -276,7 +276,7 @@ export interface FilterCriteria {
   isNotEmpty?: boolean;
 
   // Custom function
-  custom?: (value: string | number | boolean | Date | null) => boolean;
+  custom?: (value: CellValue) => boolean;
 }
 
 /**

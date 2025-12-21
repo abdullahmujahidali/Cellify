@@ -1817,6 +1817,8 @@ export class Sheet {
   private emitCellDeleted(cell: Cell): void {
     if (!this._eventsEnabled) return;
 
+    const timestamp = Date.now();
+
     const event: CellDeletedEvent = {
       type: 'cellDeleted',
       sheetName: this._name,
@@ -1824,7 +1826,7 @@ export class Sheet {
       row: cell.row,
       col: cell.col,
       value: cell.value,
-      timestamp: Date.now(),
+      timestamp,
     };
 
     // Record the change
@@ -1835,7 +1837,7 @@ export class Sheet {
       row: cell.row,
       col: cell.col,
       oldValue: cell.value,
-      timestamp: Date.now(),
+      timestamp,
     });
 
     this.emit('cellDeleted', event);
