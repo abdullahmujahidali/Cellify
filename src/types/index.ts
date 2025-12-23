@@ -67,6 +67,8 @@ export type {
   ConditionalFormatRule,
   AutoFilter,
   AutoFilterColumn,
+  PasteOptions,
+  SearchOptions,
   FilterCriteria,
 } from './range.types.js';
 

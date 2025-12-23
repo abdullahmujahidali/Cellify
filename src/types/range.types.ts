@@ -246,6 +246,36 @@ export interface AutoFilter {
 }
 
 /**
+ * Paste options for sheet.pasteRange() method
+ */
+export interface PasteOptions {
+  /** Paste only values, ignore styles */
+  valuesOnly?: boolean;
+  /** Paste only styles, ignore values */
+  stylesOnly?: boolean;
+  /** Transpose rows and columns when pasting */
+  transpose?: boolean;
+}
+
+/**
+ * Search options for sheet.find() and sheet.findAll() methods
+ */
+export interface SearchOptions {
+  /** The search query (string or number) */
+  query?: string | number;
+  /** Regular expression to match */
+  regex?: RegExp;
+  /** Match case when searching (default: false) */
+  matchCase?: boolean;
+  /** Match entire cell content (default: false, matches partial) */
+  matchCell?: boolean;
+  /** Where to search: 'values', 'formulas', or 'both' (default: 'values') */
+  searchIn?: 'values' | 'formulas' | 'both';
+  /** Limit search to specific range */
+  range?: string | RangeDefinition;
+}
+
+/**
  * Filter criteria for sheet.filter() method
  */
 export interface FilterCriteria {

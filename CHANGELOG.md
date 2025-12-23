@@ -7,7 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] - 2025-12-21
+## [0.3.0] - 2025-12-22
+
+### Added
+
+- **Search & Replace**
+  - `sheet.find(options)` to find the first cell matching search criteria
+  - `sheet.findAll(options)` to find all cells matching search criteria
+  - `sheet.replace(options)` to find and replace the first match
+  - `sheet.replaceAll(options)` to find and replace all matches
+  - Search by string, number, or regular expression
+  - Options for case-sensitive matching, whole cell matching
+  - Search in values, formulas, or both
+  - Search within specific range or entire sheet
+
+- **Copy/Paste Operations**
+  - `sheet.copyRange(range)` to copy cells to internal clipboard
+  - `sheet.cutRange(range)` to cut cells (copy and clear originals)
+  - `sheet.pasteRange(target, options)` to paste clipboard contents
+  - `sheet.duplicateRange(source, target)` to copy and paste in one operation
+  - `sheet.clearClipboard()` to clear the internal clipboard
+  - `sheet.hasClipboard` property to check if clipboard has content
+  - Paste options: `valuesOnly`, `stylesOnly`, `transpose`
+  - Preserves values, styles, and formulas when copying
+
+- **Row/Column Operations**
+  - `sheet.insertRow(index, count)` to insert rows at position
+  - `sheet.insertColumn(index, count)` to insert columns at position
+  - `sheet.deleteRow(index, count)` to delete rows
+  - `sheet.deleteColumn(index, count)` to delete columns
+  - `sheet.moveRow(from, to)` to move a row to new position
+  - `sheet.moveColumn(from, to)` to move a column to new position
+  - Preserves cell values, styles, formulas, and comments
+  - Shifts existing cells correctly when inserting/deleting
+  - Updates row/column configurations (height, width) when shifting
+
+- **Data Import/Export Helpers**
+  - `sheet.fromArray(data, options)` to populate sheet from 2D array
+  - `sheet.fromObjects(data, options)` to populate sheet from array of objects
+  - `sheet.toArray(options)` to export sheet data as 2D array
+  - `sheet.toObjects<T>()` to export sheet data as typed array of objects
+  - `sheet.appendRow(values)` to append a single row at the end
+  - `sheet.appendRows(rows)` to append multiple rows
+  - Options for custom start position, header styling, column selection
+  - Handles empty arrays and sheets gracefully
+  - Round-trip preservation (fromArray -> toArray)
 
 ## [0.2.0] - 2025-12-21
 
