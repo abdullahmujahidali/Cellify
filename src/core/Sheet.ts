@@ -1520,7 +1520,9 @@ export class Sheet {
       if (search instanceof RegExp) {
         cell.value = currentValue.replace(search, String(replacement));
       } else {
-        cell.value = currentValue.replace(String(search), String(replacement));
+        // Use global regex to replace all occurrences within the cell
+        const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        cell.value = currentValue.replace(new RegExp(escapedSearch, 'g'), String(replacement));
       }
     } else if (typeof currentValue === 'number' && typeof search === 'number') {
       if (currentValue === search) {
@@ -1562,7 +1564,7 @@ export class Sheet {
           const relKey = `${row - rangeDef.startRow},${col - rangeDef.startCol}`;
           cells.set(relKey, {
             value: cell.value,
-            style: cell.style ? { ...cell.style } : undefined,
+            style: cell.style ? JSON.parse(JSON.stringify(cell.style)) : undefined,
             formula: cell.formula?.formula,
           });
         }
@@ -1649,7 +1651,7 @@ export class Sheet {
       }
 
       if (!valuesOnly && cellData.style) {
-        destCell.style = { ...cellData.style };
+        destCell.style = JSON.parse(JSON.stringify(cellData.style));
       }
     }
 
@@ -1966,6 +1968,8 @@ export class Sheet {
         newCell.value = cell.value;
         if (cell.style) newCell.style = cell.style;
         if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
       }
     } finally {
       this._eventsEnabled = wasEventsEnabled;
@@ -2004,6 +2008,8 @@ export class Sheet {
         newCell.value = cell.value;
         if (cell.style) newCell.style = cell.style;
         if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
       }
     } finally {
       this._eventsEnabled = wasEventsEnabled;

@@ -1554,6 +1554,8 @@ function initCellEditHandlers() {
     preview.removeEventListener('contextmenu', window.cellEditListeners.onContextMenu);
     preview.removeEventListener('mousemove', window.cellEditListeners.onMouseMove);
     preview.removeEventListener('mouseleave', window.cellEditListeners.onMouseLeave);
+    preview.removeEventListener('mousedown', window.cellEditListeners.onMouseDown);
+    document.removeEventListener('mouseup', window.cellEditListeners.onMouseUp);
     document.removeEventListener('keydown', window.cellEditListeners.onKeyDown);
   }
 
@@ -2403,15 +2405,15 @@ document.getElementById('btnReplace').addEventListener('click', () => {
   }
 
   const replacement = document.getElementById('replaceInput').value;
-  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
   const cell = searchResults[searchIndex];
 
   const searchTerm = document.getElementById('searchInput').value;
   const oldValue = cell.value;
 
-  // Replace in this cell
+  // Replace in this cell (escape special regex characters)
   if (typeof oldValue === 'string') {
-    cell.value = oldValue.replace(new RegExp(searchTerm, 'gi'), replacement);
+    const escapedSearch = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cell.value = oldValue.replace(new RegExp(escapedSearch, 'gi'), replacement);
   } else {
     cell.value = replacement;
   }
@@ -2491,9 +2493,7 @@ document.getElementById('btnInsertRow').addEventListener('click', () => {
   const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
   const rowIndex = selectedRow !== null ? selectedRow : 0;
 
-  console.log('Before insert - dimensions:', sheet.dimensions);
   sheet.insertRow(rowIndex, 1);
-  console.log('After insert - dimensions:', sheet.dimensions);
 
   log(`Inserted row at index ${rowIndex}`, 'success');
 
