@@ -832,13 +832,7 @@ export class Sheet {
         const { cells } = rows[i];
 
         for (const [col, cell] of cells) {
-          const newCell = new Cell(targetRow, col, cell.value);
-          if (cell.style) newCell.style = cell.style;
-          if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-          if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-          if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-
-          newCell._onChange = this.handleCellChange.bind(this);
+          const newCell = this.createCellFromSource(targetRow, col, cell);
           this._cells.set(cellKey(targetRow, col), newCell);
         }
       }
@@ -953,13 +947,7 @@ export class Sheet {
         const { cells } = rows[i];
 
         for (const [col, cell] of cells) {
-          const newCell = new Cell(targetRow, col, cell.value);
-          if (cell.style) newCell.style = cell.style;
-          if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-          if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-          if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-
-          newCell._onChange = this.handleCellChange.bind(this);
+          const newCell = this.createCellFromSource(targetRow, col, cell);
           this._cells.set(cellKey(targetRow, col), newCell);
         }
       }
@@ -1742,12 +1730,7 @@ export class Sheet {
 
       // Then add cells at new positions
       for (const { cell, newRow } of cellsToShift) {
-        const newCell = new Cell(newRow, cell.col, cell.value);
-        if (cell.style) newCell.style = cell.style;
-        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-        newCell._onChange = this.handleCellChange.bind(this);
+        const newCell = this.createCellFromSource(newRow, cell.col, cell);
         this._cells.set(cellKey(newRow, cell.col), newCell);
       }
 
@@ -1799,12 +1782,7 @@ export class Sheet {
 
       // Then add cells at new positions
       for (const { cell, newCol } of cellsToShift) {
-        const newCell = new Cell(cell.row, newCol, cell.value);
-        if (cell.style) newCell.style = cell.style;
-        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-        newCell._onChange = this.handleCellChange.bind(this);
+        const newCell = this.createCellFromSource(cell.row, newCol, cell);
         this._cells.set(cellKey(cell.row, newCol), newCell);
       }
 
@@ -1866,12 +1844,7 @@ export class Sheet {
 
       // Then add cells at new positions
       for (const { cell, newRow } of cellsToShift) {
-        const newCell = new Cell(newRow, cell.col, cell.value);
-        if (cell.style) newCell.style = cell.style;
-        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-        newCell._onChange = this.handleCellChange.bind(this);
+        const newCell = this.createCellFromSource(newRow, cell.col, cell);
         this._cells.set(cellKey(newRow, cell.col), newCell);
       }
 
@@ -1879,7 +1852,6 @@ export class Sheet {
       const rowConfigs = new Map<number, RowConfig>();
       for (const [idx, config] of this._rows) {
         if (idx >= rowIndex && idx < rowIndex + count) {
-          // Skip deleted rows
           continue;
         } else if (idx >= rowIndex + count) {
           rowConfigs.set(idx - count, config);
@@ -1934,12 +1906,7 @@ export class Sheet {
 
       // Then add cells at new positions
       for (const { cell, newCol } of cellsToShift) {
-        const newCell = new Cell(cell.row, newCol, cell.value);
-        if (cell.style) newCell.style = cell.style;
-        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
-        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
-        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
-        newCell._onChange = this.handleCellChange.bind(this);
+        const newCell = this.createCellFromSource(cell.row, newCol, cell);
         this._cells.set(cellKey(cell.row, newCol), newCell);
       }
 
@@ -2291,6 +2258,21 @@ export class Sheet {
     }
 
     return startRow;
+  }
+
+  // ============ Internal Helpers ============
+
+  /**
+   * Internal: Create a new cell at (row, col) by copying all properties from a source cell
+   */
+  private createCellFromSource(row: number, col: number, source: Cell): Cell {
+    const newCell = new Cell(row, col, source.value);
+    if (source.style) newCell.style = source.style;
+    if (source.formula) newCell.setFormula('=' + source.formula.formula, source.formula.result);
+    if (source.hyperlink) newCell.setHyperlink(source.hyperlink.target, source.hyperlink.tooltip);
+    if (source.comment) newCell.setComment(source.comment.text as string, source.comment.author);
+    newCell._onChange = this.handleCellChange.bind(this);
+    return newCell;
   }
 
   // ============ Utility Methods ============

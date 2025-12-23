@@ -314,4 +314,69 @@ describe('Sheet Undo/Redo', () => {
       expect(sheet.canUndo).toBe(false);
     });
   });
+
+  describe('redo style changes', () => {
+    it('should redo style changes correctly', () => {
+      const workbook = new Workbook();
+      const sheet = workbook.addSheet('Test');
+
+      sheet.cell('A1').value = 'Test';
+      sheet.cell('A1').style = { font: { bold: true, size: 14 } };
+
+      expect(sheet.cell('A1').style?.font?.bold).toBe(true);
+      expect(sheet.cell('A1').style?.font?.size).toBe(14);
+
+      sheet.undo();
+      expect(sheet.cell('A1').style).toBeUndefined();
+
+      sheet.redo();
+      expect(sheet.cell('A1').style?.font?.bold).toBe(true);
+      expect(sheet.cell('A1').style?.font?.size).toBe(14);
+    });
+  });
+
+  describe('setMaxUndoHistory trimming', () => {
+    it('should trim existing undo stack when setting lower max', () => {
+      const workbook = new Workbook();
+      const sheet = workbook.addSheet('Test');
+
+      // Add 5 changes
+      sheet.cell('A1').value = 'One';
+      sheet.cell('A1').value = 'Two';
+      sheet.cell('A1').value = 'Three';
+      sheet.cell('A1').value = 'Four';
+      sheet.cell('A1').value = 'Five';
+
+      expect(sheet.undoCount).toBe(5);
+
+      // Set max to 2, should trim the stack
+      sheet.setMaxUndoHistory(2);
+
+      expect(sheet.undoCount).toBe(2);
+
+      // Can only undo to 'Four' now
+      sheet.undo();
+      expect(sheet.cell('A1').value).toBe('Four');
+    });
+
+    it('should trim style changes when exceeding max undo history', () => {
+      const workbook = new Workbook();
+      const sheet = workbook.addSheet('Test');
+
+      sheet.setMaxUndoHistory(3);
+
+      // Make 5 style changes (more than max)
+      sheet.cell('A1').style = { font: { bold: true } };
+      sheet.cell('A1').style = { font: { italic: true } };
+      sheet.cell('A1').style = { font: { size: 12 } };
+      sheet.cell('A1').style = { font: { size: 14 } };
+      sheet.cell('A1').style = { font: { size: 16 } };
+
+      // Should only have 3 undo steps
+      expect(sheet.undoCount).toBe(3);
+
+      sheet.undo();
+      expect(sheet.cell('A1').style?.font?.size).toBe(14);
+    });
+  });
 });
