@@ -1041,3 +1041,115 @@ th.has-filter::after {
   background: var(--primary);
   border-radius: 50%;
 }
+
+/* ========================================
+   Sheet Operations Toolbar
+   ======================================== */
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--gray-100);
+  border-radius: 8px;
+}
+
+.search-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.toolbar-input {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 14px;
+  width: 150px;
+  background: var(--white);
+}
+
+.toolbar-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.toolbar-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+}
+
+.toolbar-btn:active {
+  background: var(--gray-200);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--white);
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+}
+
+.toolbar-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-500);
+  margin-right: 4px;
+}
+
+.toolbar-hint {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--primary-light);
+  border-radius: 6px;
+}
+
+.toolbar-hint strong {
+  color: var(--primary-dark);
+}
+
+/* Search highlight */
+td.search-highlight {
+  outline: 2px solid var(--primary) !important;
+  background-color: var(--primary-light) !important;
+}
+
+td.search-current {
+  outline: 3px solid var(--warning) !important;
+  background-color: var(--warning-bg) !important;
+}
+
+/* Multi-cell selection */
+td.cell-selected {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+td.cell-selected.selected {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  outline: 2px solid #3B82F6;
+}
+
+/* Prevent text selection during drag */
+#preview.selecting {
+  user-select: none;
+}

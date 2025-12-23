@@ -10,6 +10,8 @@ import type {
   ConditionalFormatRule,
   AutoFilter,
   FilterCriteria,
+  SearchOptions,
+  PasteOptions,
 } from '../types/range.types.js';
 import { parseRangeReference, iterateRange, rangesOverlap } from '../types/range.types.js';
 import type {
@@ -1323,6 +1325,972 @@ export class Sheet {
 
     // Default: if no criteria matched, include the row
     return true;
+  }
+
+  // ============ Search ============
+
+  /**
+   * Find the first cell matching the search criteria
+   *
+   * @param query - String, number, RegExp, or search options
+   * @param options - Search options
+   * @returns The first matching cell, or undefined if not found
+   *
+   * @example
+   * ```typescript
+   * // Find by exact value
+   * const cell = sheet.find('Hello');
+   *
+   * // Find by regex
+   * const cell = sheet.find(/error/i);
+   *
+   * // Find with options
+   * const cell = sheet.find('test', { matchCase: true, searchIn: 'values' });
+   * ```
+   */
+  find(
+    query: string | number | RegExp | SearchOptions,
+    options: SearchOptions = {}
+  ): Cell | undefined {
+    const results = this.findAllInternal(query, options, 1);
+    return results[0];
+  }
+
+  /**
+   * Find all cells matching the search criteria
+   *
+   * @param query - String, number, RegExp, or search options
+   * @param options - Search options
+   * @returns Array of matching cells
+   *
+   * @example
+   * ```typescript
+   * // Find all cells containing 'error'
+   * const cells = sheet.findAll('error');
+   *
+   * // Find all numbers greater than 100 using regex
+   * const cells = sheet.findAll(/^\d{3,}$/);
+   *
+   * // Search in formulas
+   * const cells = sheet.findAll('SUM', { searchIn: 'formulas' });
+   * ```
+   */
+  findAll(
+    query: string | number | RegExp | SearchOptions,
+    options: SearchOptions = {}
+  ): Cell[] {
+    return this.findAllInternal(query, options);
+  }
+
+  /**
+   * Replace the first occurrence of a value
+   *
+   * @param search - Value to search for
+   * @param replacement - Value to replace with
+   * @param options - Search options
+   * @returns The replaced cell, or undefined if not found
+   */
+  replace(
+    search: string | number | RegExp,
+    replacement: string | number,
+    options: SearchOptions = {}
+  ): Cell | undefined {
+    const cell = this.find(search, options);
+    if (cell) {
+      this.replaceInCell(cell, search, replacement);
+    }
+    return cell;
+  }
+
+  /**
+   * Replace all occurrences of a value
+   *
+   * @param search - Value to search for
+   * @param replacement - Value to replace with
+   * @param options - Search options
+   * @returns Array of replaced cells
+   */
+  replaceAll(
+    search: string | number | RegExp,
+    replacement: string | number,
+    options: SearchOptions = {}
+  ): Cell[] {
+    const cells = this.findAll(search, options);
+    for (const cell of cells) {
+      this.replaceInCell(cell, search, replacement);
+    }
+    return cells;
+  }
+
+  /**
+   * Internal: Find all matching cells with optional limit
+   */
+  private findAllInternal(
+    query: string | number | RegExp | SearchOptions,
+    options: SearchOptions = {},
+    limit?: number
+  ): Cell[] {
+    // Normalize query to options
+    let searchOptions: SearchOptions;
+    if (typeof query === 'string' || typeof query === 'number') {
+      searchOptions = { ...options, query };
+    } else if (query instanceof RegExp) {
+      searchOptions = { ...options, regex: query };
+    } else {
+      searchOptions = { ...query, ...options };
+    }
+
+    const {
+      query: searchQuery,
+      regex,
+      matchCase = false,
+      matchCell = false,
+      searchIn = 'values',
+      range,
+    } = searchOptions;
+
+    const results: Cell[] = [];
+
+    // Determine search range
+    let searchRange: RangeDefinition | null = null;
+    if (range) {
+      searchRange = typeof range === 'string' ? parseRangeReference(range) : range;
+    }
+
+    for (const cell of this._cells.values()) {
+      // Check if cell is in range
+      if (searchRange) {
+        if (
+          cell.row < searchRange.startRow ||
+          cell.row > searchRange.endRow ||
+          cell.col < searchRange.startCol ||
+          cell.col > searchRange.endCol
+        ) {
+          continue;
+        }
+      }
+
+      // Get value to search in
+      let searchValue: string | null = null;
+
+      if (searchIn === 'values' || searchIn === 'both') {
+        const val = cell.value;
+        if (val !== null && val !== undefined) {
+          searchValue = String(val);
+        }
+      }
+
+      if (searchIn === 'formulas' || searchIn === 'both') {
+        if (cell.formula) {
+          const formulaStr = cell.formula.formula;
+          searchValue = searchValue ? `${searchValue} ${formulaStr}` : formulaStr;
+        }
+      }
+
+      if (searchValue === null) continue;
+
+      // Perform search
+      let matches = false;
+
+      if (regex) {
+        matches = regex.test(searchValue);
+      } else if (searchQuery !== undefined) {
+        const queryStr = String(searchQuery);
+        const targetStr = matchCase ? searchValue : searchValue.toLowerCase();
+        const searchStr = matchCase ? queryStr : queryStr.toLowerCase();
+
+        if (matchCell) {
+          matches = targetStr === searchStr;
+        } else {
+          matches = targetStr.includes(searchStr);
+        }
+      }
+
+      if (matches) {
+        results.push(cell);
+        if (limit && results.length >= limit) {
+          break;
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Internal: Replace value in a cell
+   */
+  private replaceInCell(
+    cell: Cell,
+    search: string | number | RegExp,
+    replacement: string | number
+  ): void {
+    const currentValue = cell.value;
+    if (currentValue === null || currentValue === undefined) return;
+
+    if (typeof currentValue === 'string') {
+      if (search instanceof RegExp) {
+        cell.value = currentValue.replace(search, String(replacement));
+      } else {
+        cell.value = currentValue.replace(String(search), String(replacement));
+      }
+    } else if (typeof currentValue === 'number' && typeof search === 'number') {
+      if (currentValue === search) {
+        cell.value = typeof replacement === 'number' ? replacement : parseFloat(String(replacement));
+      }
+    }
+  }
+
+  // ============ Copy/Paste ============
+
+  // Internal clipboard for copy/paste operations
+  private _clipboard: {
+    cells: Map<string, { value: CellValue; style?: CellStyle; formula?: string }>;
+    range: RangeDefinition;
+  } | null = null;
+
+  /**
+   * Copy a range of cells to the internal clipboard
+   *
+   * @param range - Range to copy (e.g., 'A1:C3' or RangeDefinition)
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.copyRange('A1:C3');
+   * sheet.pasteRange('E1'); // Paste at E1
+   * ```
+   */
+  copyRange(range: string | RangeDefinition): this {
+    const rangeDef = typeof range === 'string' ? parseRangeReference(range) : range;
+
+    const cells = new Map<string, { value: CellValue; style?: CellStyle; formula?: string }>();
+
+    for (let row = rangeDef.startRow; row <= rangeDef.endRow; row++) {
+      for (let col = rangeDef.startCol; col <= rangeDef.endCol; col++) {
+        const cell = this.getCell(row, col);
+        if (cell) {
+          // Store relative position within the range
+          const relKey = `${row - rangeDef.startRow},${col - rangeDef.startCol}`;
+          cells.set(relKey, {
+            value: cell.value,
+            style: cell.style ? { ...cell.style } : undefined,
+            formula: cell.formula?.formula,
+          });
+        }
+      }
+    }
+
+    this._clipboard = { cells, range: rangeDef };
+    return this;
+  }
+
+  /**
+   * Cut a range of cells (copy and then clear)
+   *
+   * @param range - Range to cut
+   * @returns this for chaining
+   */
+  cutRange(range: string | RangeDefinition): this {
+    this.copyRange(range);
+    this.clearRange(range);
+    return this;
+  }
+
+  /**
+   * Paste the clipboard contents at the specified location
+   *
+   * @param target - Target cell address or position (top-left corner of paste area)
+   * @param options - Paste options
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.copyRange('A1:C3');
+   * sheet.pasteRange('E1'); // Paste values and styles
+   * sheet.pasteRange('H1', { valuesOnly: true }); // Paste values only
+   * ```
+   */
+  pasteRange(
+    target: string | { row: number; col: number },
+    options: PasteOptions = {}
+  ): this {
+    if (!this._clipboard) {
+      return this;
+    }
+
+    const {
+      valuesOnly = false,
+      stylesOnly = false,
+      transpose = false,
+    } = options;
+
+    let targetRow: number;
+    let targetCol: number;
+
+    if (typeof target === 'string') {
+      const addr = a1ToAddress(target);
+      targetRow = addr.row;
+      targetCol = addr.col;
+    } else {
+      targetRow = target.row;
+      targetCol = target.col;
+    }
+
+    for (const [relKey, cellData] of this._clipboard.cells) {
+      const [relRowStr, relColStr] = relKey.split(',');
+      let relRow = parseInt(relRowStr, 10);
+      let relCol = parseInt(relColStr, 10);
+
+      // Handle transpose
+      if (transpose) {
+        [relRow, relCol] = [relCol, relRow];
+      }
+
+      const destRow = targetRow + relRow;
+      const destCol = targetCol + relCol;
+      const destCell = this.cell(destRow, destCol);
+
+      if (!stylesOnly) {
+        if (cellData.formula) {
+          // Adjust formula references (simplified - just copy as-is for now)
+          destCell.setFormula('=' + cellData.formula);
+        } else {
+          destCell.value = cellData.value;
+        }
+      }
+
+      if (!valuesOnly && cellData.style) {
+        destCell.style = { ...cellData.style };
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Check if there's content in the clipboard
+   */
+  get hasClipboard(): boolean {
+    return this._clipboard !== null && this._clipboard.cells.size > 0;
+  }
+
+  /**
+   * Clear the internal clipboard
+   */
+  clearClipboard(): this {
+    this._clipboard = null;
+    return this;
+  }
+
+  /**
+   * Duplicate a range to another location (copy + paste in one operation)
+   *
+   * @param source - Source range
+   * @param target - Target location (top-left corner)
+   * @param options - Paste options
+   */
+  duplicateRange(
+    source: string | RangeDefinition,
+    target: string | { row: number; col: number },
+    options: PasteOptions = {}
+  ): this {
+    this.copyRange(source);
+    this.pasteRange(target, options);
+    return this;
+  }
+
+  // ============ Row/Column Insert/Delete ============
+
+  /**
+   * Insert one or more rows at the specified index
+   *
+   * @param rowIndex - Index where to insert (0-based)
+   * @param count - Number of rows to insert (default: 1)
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * // Insert a single row at index 2 (before row 3)
+   * sheet.insertRow(2);
+   *
+   * // Insert 3 rows at index 0 (at the top)
+   * sheet.insertRow(0, 3);
+   * ```
+   */
+  insertRow(rowIndex: number, count: number = 1): this {
+    if (count <= 0) return this;
+
+    // Disable events during restructuring
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      // Collect cells that need to be shifted
+      const cellsToShift: { key: string; cell: Cell; newRow: number }[] = [];
+
+      for (const [key, cell] of this._cells) {
+        if (cell.row >= rowIndex) {
+          cellsToShift.push({ key, cell: cell.clone(), newRow: cell.row + count });
+        }
+      }
+
+      // First, delete all old cells
+      for (const { key } of cellsToShift) {
+        this._cells.delete(key);
+      }
+
+      // Then add cells at new positions
+      for (const { cell, newRow } of cellsToShift) {
+        const newCell = new Cell(newRow, cell.col, cell.value);
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+        newCell._onChange = this.handleCellChange.bind(this);
+        this._cells.set(cellKey(newRow, cell.col), newCell);
+      }
+
+      // Shift row configurations
+      const rowConfigs = new Map<number, RowConfig>();
+      for (const [idx, config] of this._rows) {
+        if (idx >= rowIndex) {
+          rowConfigs.set(idx + count, config);
+        } else {
+          rowConfigs.set(idx, config);
+        }
+      }
+      this._rows = rowConfigs;
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Insert one or more columns at the specified index
+   *
+   * @param colIndex - Column index where to insert (0-based)
+   * @param count - Number of columns to insert (default: 1)
+   * @returns this for chaining
+   */
+  insertColumn(colIndex: number, count: number = 1): this {
+    if (count <= 0) return this;
+
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      const cellsToShift: { key: string; cell: Cell; newCol: number }[] = [];
+
+      for (const [key, cell] of this._cells) {
+        if (cell.col >= colIndex) {
+          cellsToShift.push({ key, cell: cell.clone(), newCol: cell.col + count });
+        }
+      }
+
+      // First, delete all old cells
+      for (const { key } of cellsToShift) {
+        this._cells.delete(key);
+      }
+
+      // Then add cells at new positions
+      for (const { cell, newCol } of cellsToShift) {
+        const newCell = new Cell(cell.row, newCol, cell.value);
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+        newCell._onChange = this.handleCellChange.bind(this);
+        this._cells.set(cellKey(cell.row, newCol), newCell);
+      }
+
+      // Shift column configurations
+      const colConfigs = new Map<number, ColumnConfig>();
+      for (const [idx, config] of this._cols) {
+        if (idx >= colIndex) {
+          colConfigs.set(idx + count, config);
+        } else {
+          colConfigs.set(idx, config);
+        }
+      }
+      this._cols = colConfigs;
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Delete one or more rows at the specified index
+   *
+   * @param rowIndex - Index of first row to delete (0-based)
+   * @param count - Number of rows to delete (default: 1)
+   * @returns this for chaining
+   */
+  deleteRow(rowIndex: number, count: number = 1): this {
+    if (count <= 0) return this;
+
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      const cellsToDelete: string[] = [];
+      const cellsToShift: { key: string; cell: Cell; newRow: number }[] = [];
+
+      for (const [key, cell] of this._cells) {
+        if (cell.row >= rowIndex && cell.row < rowIndex + count) {
+          // Cell is in deleted range
+          cellsToDelete.push(key);
+        } else if (cell.row >= rowIndex + count) {
+          // Cell needs to shift up
+          cellsToShift.push({ key, cell: cell.clone(), newRow: cell.row - count });
+        }
+      }
+
+      // Delete cells in range
+      for (const key of cellsToDelete) {
+        this._cells.delete(key);
+      }
+
+      // Delete old shifted cells first
+      for (const { key } of cellsToShift) {
+        this._cells.delete(key);
+      }
+
+      // Then add cells at new positions
+      for (const { cell, newRow } of cellsToShift) {
+        const newCell = new Cell(newRow, cell.col, cell.value);
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+        newCell._onChange = this.handleCellChange.bind(this);
+        this._cells.set(cellKey(newRow, cell.col), newCell);
+      }
+
+      // Shift row configurations
+      const rowConfigs = new Map<number, RowConfig>();
+      for (const [idx, config] of this._rows) {
+        if (idx >= rowIndex && idx < rowIndex + count) {
+          // Skip deleted rows
+          continue;
+        } else if (idx >= rowIndex + count) {
+          rowConfigs.set(idx - count, config);
+        } else {
+          rowConfigs.set(idx, config);
+        }
+      }
+      this._rows = rowConfigs;
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Delete one or more columns at the specified index
+   *
+   * @param colIndex - Index of first column to delete (0-based)
+   * @param count - Number of columns to delete (default: 1)
+   * @returns this for chaining
+   */
+  deleteColumn(colIndex: number, count: number = 1): this {
+    if (count <= 0) return this;
+
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+
+    try {
+      const cellsToDelete: string[] = [];
+      const cellsToShift: { key: string; cell: Cell; newCol: number }[] = [];
+
+      for (const [key, cell] of this._cells) {
+        if (cell.col >= colIndex && cell.col < colIndex + count) {
+          cellsToDelete.push(key);
+        } else if (cell.col >= colIndex + count) {
+          cellsToShift.push({ key, cell: cell.clone(), newCol: cell.col - count });
+        }
+      }
+
+      // Delete cells in range
+      for (const key of cellsToDelete) {
+        this._cells.delete(key);
+      }
+
+      // Delete old shifted cells first
+      for (const { key } of cellsToShift) {
+        this._cells.delete(key);
+      }
+
+      // Then add cells at new positions
+      for (const { cell, newCol } of cellsToShift) {
+        const newCell = new Cell(cell.row, newCol, cell.value);
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+        if (cell.hyperlink) newCell.setHyperlink(cell.hyperlink.target, cell.hyperlink.tooltip);
+        if (cell.comment) newCell.setComment(cell.comment.text as string, cell.comment.author);
+        newCell._onChange = this.handleCellChange.bind(this);
+        this._cells.set(cellKey(cell.row, newCol), newCell);
+      }
+
+      // Shift column configurations
+      const colConfigs = new Map<number, ColumnConfig>();
+      for (const [idx, config] of this._cols) {
+        if (idx >= colIndex && idx < colIndex + count) {
+          continue;
+        } else if (idx >= colIndex + count) {
+          colConfigs.set(idx - count, config);
+        } else {
+          colConfigs.set(idx, config);
+        }
+      }
+      this._cols = colConfigs;
+
+      this.recalculateDimensions();
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Move a row from one position to another
+   *
+   * @param fromIndex - Source row index
+   * @param toIndex - Target row index
+   */
+  moveRow(fromIndex: number, toIndex: number): this {
+    if (fromIndex === toIndex) return this;
+
+    // Copy the row data
+    const rowCells: Cell[] = [];
+    for (const cell of this._cells.values()) {
+      if (cell.row === fromIndex) {
+        rowCells.push(cell.clone());
+      }
+    }
+
+    // Delete the source row
+    this.deleteRow(fromIndex);
+
+    // Adjust target if needed
+    const adjustedTo = fromIndex < toIndex ? toIndex - 1 : toIndex;
+
+    // Insert at target
+    this.insertRow(adjustedTo);
+
+    // Place the cells
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+    try {
+      for (const cell of rowCells) {
+        const newCell = this.cell(adjustedTo, cell.col);
+        newCell.value = cell.value;
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+      }
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  /**
+   * Move a column from one position to another
+   *
+   * @param fromIndex - Source column index
+   * @param toIndex - Target column index
+   */
+  moveColumn(fromIndex: number, toIndex: number): this {
+    if (fromIndex === toIndex) return this;
+
+    const colCells: Cell[] = [];
+    for (const cell of this._cells.values()) {
+      if (cell.col === fromIndex) {
+        colCells.push(cell.clone());
+      }
+    }
+
+    this.deleteColumn(fromIndex);
+
+    const adjustedTo = fromIndex < toIndex ? toIndex - 1 : toIndex;
+
+    this.insertColumn(adjustedTo);
+
+    const wasEventsEnabled = this._eventsEnabled;
+    this._eventsEnabled = false;
+    try {
+      for (const cell of colCells) {
+        const newCell = this.cell(cell.row, adjustedTo);
+        newCell.value = cell.value;
+        if (cell.style) newCell.style = cell.style;
+        if (cell.formula) newCell.setFormula('=' + cell.formula.formula, cell.formula.result);
+      }
+    } finally {
+      this._eventsEnabled = wasEventsEnabled;
+    }
+
+    return this;
+  }
+
+  // ============ Data Import/Export Helpers ============
+
+  /**
+   * Populate sheet from a 2D array
+   *
+   * @param data - 2D array of values
+   * @param options - Import options
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.fromArray([
+   *   ['Name', 'Age', 'City'],
+   *   ['Alice', 25, 'NYC'],
+   *   ['Bob', 30, 'LA'],
+   * ]);
+   * ```
+   */
+  fromArray(
+    data: CellValue[][],
+    options: {
+      startRow?: number;
+      startCol?: number;
+      headers?: boolean;
+      headerStyle?: CellStyle;
+    } = {}
+  ): this {
+    const {
+      startRow = 0,
+      startCol = 0,
+      headers = false,
+      headerStyle,
+    } = options;
+
+    for (let r = 0; r < data.length; r++) {
+      const row = data[r];
+      for (let c = 0; c < row.length; c++) {
+        const cell = this.cell(startRow + r, startCol + c);
+        cell.value = row[c];
+
+        // Apply header style to first row if specified
+        if (headers && r === 0 && headerStyle) {
+          cell.style = headerStyle;
+        }
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Populate sheet from an array of objects
+   *
+   * @param data - Array of objects
+   * @param options - Import options
+   * @returns this for chaining
+   *
+   * @example
+   * ```typescript
+   * sheet.fromObjects([
+   *   { name: 'Alice', age: 25, city: 'NYC' },
+   *   { name: 'Bob', age: 30, city: 'LA' },
+   * ], { includeHeaders: true });
+   * ```
+   */
+  fromObjects<T extends Record<string, CellValue>>(
+    data: T[],
+    options: {
+      startRow?: number;
+      startCol?: number;
+      includeHeaders?: boolean;
+      headerStyle?: CellStyle;
+      columns?: (keyof T)[];
+    } = {}
+  ): this {
+    if (data.length === 0) return this;
+
+    const {
+      startRow = 0,
+      startCol = 0,
+      includeHeaders = true,
+      headerStyle,
+      columns,
+    } = options;
+
+    // Determine columns to use
+    const keys = columns ?? (Object.keys(data[0]) as (keyof T)[]);
+
+    let currentRow = startRow;
+
+    // Add headers
+    if (includeHeaders) {
+      for (let c = 0; c < keys.length; c++) {
+        const cell = this.cell(currentRow, startCol + c);
+        cell.value = String(keys[c]);
+        if (headerStyle) {
+          cell.style = headerStyle;
+        }
+      }
+      currentRow++;
+    }
+
+    // Add data rows
+    for (const obj of data) {
+      for (let c = 0; c < keys.length; c++) {
+        const cell = this.cell(currentRow, startCol + c);
+        cell.value = obj[keys[c]] ?? null;
+      }
+      currentRow++;
+    }
+
+    return this;
+  }
+
+  /**
+   * Export sheet data as a 2D array
+   *
+   * @param options - Export options
+   * @returns 2D array of cell values
+   *
+   * @example
+   * ```typescript
+   * const data = sheet.toArray();
+   * // [['Name', 'Age'], ['Alice', 25], ['Bob', 30]]
+   * ```
+   */
+  toArray(options: {
+    range?: string | RangeDefinition;
+    includeEmpty?: boolean;
+  } = {}): CellValue[][] {
+    const { range, includeEmpty = true } = options;
+
+    let rangeToExport: RangeDefinition;
+    if (range) {
+      rangeToExport = typeof range === 'string' ? parseRangeReference(range) : range;
+    } else {
+      const dims = this.dimensions;
+      if (!dims) return [];
+      rangeToExport = dims;
+    }
+
+    const result: CellValue[][] = [];
+
+    for (let r = rangeToExport.startRow; r <= rangeToExport.endRow; r++) {
+      const row: CellValue[] = [];
+      for (let c = rangeToExport.startCol; c <= rangeToExport.endCol; c++) {
+        const cell = this.getCell(r, c);
+        row.push(cell?.value ?? null);
+      }
+
+      // Skip empty rows if includeEmpty is false
+      if (!includeEmpty && row.every(v => v === null)) {
+        continue;
+      }
+
+      result.push(row);
+    }
+
+    return result;
+  }
+
+  /**
+   * Export sheet data as an array of objects
+   *
+   * @param options - Export options
+   * @returns Array of objects with column headers as keys
+   *
+   * @example
+   * ```typescript
+   * const data = sheet.toObjects();
+   * // [{ Name: 'Alice', Age: 25 }, { Name: 'Bob', Age: 30 }]
+   * ```
+   */
+  toObjects<T extends Record<string, CellValue> = Record<string, CellValue>>(options: {
+    range?: string | RangeDefinition;
+    headerRow?: number;
+  } = {}): T[] {
+    const { range, headerRow = 0 } = options;
+
+    let rangeToExport: RangeDefinition;
+    if (range) {
+      rangeToExport = typeof range === 'string' ? parseRangeReference(range) : range;
+    } else {
+      const dims = this.dimensions;
+      if (!dims) return [];
+      rangeToExport = dims;
+    }
+
+    // Get headers from the first row
+    const headers: string[] = [];
+    for (let c = rangeToExport.startCol; c <= rangeToExport.endCol; c++) {
+      const cell = this.getCell(headerRow, c);
+      headers.push(cell?.value !== null ? String(cell?.value) : `Column${c}`);
+    }
+
+    // Build objects from remaining rows
+    const result: T[] = [];
+    for (let r = headerRow + 1; r <= rangeToExport.endRow; r++) {
+      const obj: Record<string, CellValue> = {};
+      for (let c = rangeToExport.startCol; c <= rangeToExport.endCol; c++) {
+        const cell = this.getCell(r, c);
+        obj[headers[c - rangeToExport.startCol]] = cell?.value ?? null;
+      }
+      result.push(obj as T);
+    }
+
+    return result;
+  }
+
+  /**
+   * Append a row of data to the end of the sheet
+   *
+   * @param values - Array of values for the new row
+   * @param startCol - Starting column (default: 0)
+   * @returns The row index of the appended row
+   */
+  appendRow(values: CellValue[], startCol: number = 0): number {
+    const dims = this.dimensions;
+    const newRow = dims ? dims.endRow + 1 : 0;
+
+    for (let c = 0; c < values.length; c++) {
+      this.cell(newRow, startCol + c).value = values[c];
+    }
+
+    return newRow;
+  }
+
+  /**
+   * Append multiple rows of data to the end of the sheet
+   *
+   * @param rows - 2D array of values
+   * @param startCol - Starting column (default: 0)
+   * @returns The starting row index of the appended rows
+   */
+  appendRows(rows: CellValue[][], startCol: number = 0): number {
+    const dims = this.dimensions;
+    const startRow = dims ? dims.endRow + 1 : 0;
+
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      for (let c = 0; c < row.length; c++) {
+        this.cell(startRow + r, startCol + c).value = row[c];
+      }
+    }
+
+    return startRow;
   }
 
   // ============ Utility Methods ============

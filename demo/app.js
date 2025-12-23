@@ -459,6 +459,7 @@ function displayImportResult(result) {
   const { workbook, stats, warnings } = result;
 
   document.getElementById('importStats').style.display = 'block';
+  showSheetOperationsToolbar(); // Show the operations toolbar
 
 
   let statsHtml = `
@@ -757,8 +758,60 @@ let selectedRow = null;
 let selectedCol = null;
 let isEditing = false;
 
+// Range selection support
+let selectionStart = null;  // { row, col }
+let selectionEnd = null;    // { row, col }
+let isDragging = false;
+
 let selectedColumn = null;  // Column index when whole column is selected
 let selectedRowHeader = null;  // Row index when whole row is selected
+
+// Get normalized selection range (start <= end)
+function getSelectionRange() {
+  if (!selectionStart || !selectionEnd) return null;
+  return {
+    startRow: Math.min(selectionStart.row, selectionEnd.row),
+    endRow: Math.max(selectionStart.row, selectionEnd.row),
+    startCol: Math.min(selectionStart.col, selectionEnd.col),
+    endCol: Math.max(selectionStart.col, selectionEnd.col)
+  };
+}
+
+// Check if a cell is in the current selection
+function isCellSelected(row, col) {
+  const range = getSelectionRange();
+  if (!range) return false;
+  return row >= range.startRow && row <= range.endRow &&
+         col >= range.startCol && col <= range.endCol;
+}
+
+// Highlight selected cells
+function updateSelectionHighlight() {
+  // Clear old highlights
+  document.querySelectorAll('td.cell-selected').forEach(td => {
+    td.classList.remove('cell-selected');
+  });
+
+  const range = getSelectionRange();
+  if (!range) return;
+
+  // Highlight all cells in range
+  for (let r = range.startRow; r <= range.endRow; r++) {
+    for (let c = range.startCol; c <= range.endCol; c++) {
+      const td = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+      if (td) td.classList.add('cell-selected');
+    }
+  }
+}
+
+// Get selection as A1 notation (e.g., "A1:C5")
+function getSelectionA1() {
+  const range = getSelectionRange();
+  if (!range) return null;
+  const start = `${columnLetter(range.startCol)}${range.startRow + 1}`;
+  const end = `${columnLetter(range.endCol)}${range.endRow + 1}`;
+  return start === end ? start : `${start}:${end}`;
+}
 
 const undoStack = [];
 const MAX_UNDO_STACK = 50;
@@ -905,8 +958,19 @@ function copyCell() {
   if (selectedRow === null || selectedCol === null) return;
 
   const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
-  const cell = sheet.getCell(selectedRow, selectedCol);
+  const range = getSelectionRange();
 
+  // If range selected, use sheet's copyRange
+  if (range && (range.endRow > range.startRow || range.endCol > range.startCol)) {
+    const rangeA1 = getSelectionA1();
+    sheet.copyRange(rangeA1);
+    clipboard = { isRange: true, range: rangeA1, isCut: false };
+    log(`Copied range ${rangeA1}`, 'info');
+    return;
+  }
+
+  // Single cell copy
+  const cell = sheet.getCell(selectedRow, selectedCol);
   clipboard = {
     row: selectedRow,
     col: selectedCol,
@@ -914,7 +978,8 @@ function copyCell() {
     formula: cell?.formula?.formula,
     style: cell?.style ? JSON.parse(JSON.stringify(cell.style)) : null,
     comment: cell?.comment ? JSON.parse(JSON.stringify(cell.comment)) : null,
-    isCut: false
+    isCut: false,
+    isRange: false
   };
 
   log(`Copied cell ${columnLetter(selectedCol)}${selectedRow + 1}`, 'info');
@@ -925,8 +990,30 @@ function cutCell() {
   if (selectedRow === null || selectedCol === null) return;
 
   const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
-  const cell = sheet.getCell(selectedRow, selectedCol);
+  const range = getSelectionRange();
 
+  // If range selected, use sheet's cutRange
+  if (range && (range.endRow > range.startRow || range.endCol > range.startCol)) {
+    const rangeA1 = getSelectionA1();
+    sheet.cutRange(rangeA1);
+    clipboard = { isRange: true, range: rangeA1, isCut: true };
+
+    // Visual feedback for cut cells
+    for (let r = range.startRow; r <= range.endRow; r++) {
+      for (let c = range.startCol; c <= range.endCol; c++) {
+        const td = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+        if (td) {
+          td.style.opacity = '0.5';
+          td.style.border = '2px dashed var(--primary)';
+        }
+      }
+    }
+    log(`Cut range ${rangeA1}`, 'info');
+    return;
+  }
+
+  // Single cell cut
+  const cell = sheet.getCell(selectedRow, selectedCol);
   clipboard = {
     row: selectedRow,
     col: selectedCol,
@@ -934,9 +1021,9 @@ function cutCell() {
     formula: cell?.formula?.formula,
     style: cell?.style ? JSON.parse(JSON.stringify(cell.style)) : null,
     comment: cell?.comment ? JSON.parse(JSON.stringify(cell.comment)) : null,
-    isCut: true
+    isCut: true,
+    isRange: false
   };
-
 
   const td = document.querySelector(`td[data-row="${selectedRow}"][data-col="${selectedCol}"]`);
   if (td) {
@@ -952,20 +1039,38 @@ function pasteCell() {
   if (!clipboard || selectedRow === null || selectedCol === null) return;
 
   const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+
+  // If clipboard has a range, use sheet's pasteRange
+  if (clipboard.isRange) {
+    const targetA1 = `${columnLetter(selectedCol)}${selectedRow + 1}`;
+    sheet.pasteRange(targetA1);
+    log(`Pasted range to ${targetA1}`, 'info');
+
+    // Clear cut visual feedback
+    if (clipboard.isCut) {
+      document.querySelectorAll('td').forEach(td => {
+        td.style.opacity = '';
+        td.style.border = '';
+      });
+      clipboard = null;
+    }
+
+    selectSheet(window.currentSheetIndex);
+    return;
+  }
+
+  // Single cell paste
   const cell = sheet.cell(selectedRow, selectedCol);
   const oldValue = cell.value;
 
-
   undoStack.push({ row: selectedRow, col: selectedCol, oldValue, newValue: clipboard.value });
   if (undoStack.length > MAX_UNDO_STACK) undoStack.shift();
-
 
   if (clipboard.formula) {
     cell.setFormula(clipboard.formula);
   } else if (clipboard.value !== undefined && clipboard.value !== null) {
     cell.value = clipboard.value;
   }
-
 
   if (clipboard.style) {
     cell.style = JSON.parse(JSON.stringify(clipboard.style));
@@ -979,8 +1084,7 @@ function pasteCell() {
   }
 
   if (clipboard.isCut) {
-    const sourceSheet = window.currentWorkbook.sheets[window.currentSheetIndex];
-    const sourceCell = sourceSheet.cell(clipboard.row, clipboard.col);
+    const sourceCell = sheet.cell(clipboard.row, clipboard.col);
     sourceCell.clear();
 
     const sourceTd = document.querySelector(`td[data-row="${clipboard.row}"][data-col="${clipboard.col}"]`);
@@ -1499,8 +1603,52 @@ function initCellEditHandlers() {
         }
       }
 
-      selectCell(row, col);
+      selectCell(row, col, e);
     }
+  };
+
+  // Mouse down starts drag selection
+  const onMouseDown = (e) => {
+    const td = e.target.closest('td[data-row][data-col]');
+    if (td && !isEditing && e.button === 0) { // Left mouse button
+      isDragging = true;
+      const row = parseInt(td.dataset.row);
+      const col = parseInt(td.dataset.col);
+
+      if (!e.shiftKey) {
+        // Start new selection
+        clearAllSelections();
+        selectionStart = { row, col };
+        selectionEnd = { row, col };
+        selectedRow = row;
+        selectedCol = col;
+        td.classList.add('selected', 'cell-selected');
+      }
+    }
+  };
+
+  // Mouse move extends selection during drag
+  const onMouseMoveDrag = (e) => {
+    if (!isDragging || !selectionStart) return;
+
+    const td = e.target.closest('td[data-row][data-col]');
+    if (td) {
+      const row = parseInt(td.dataset.row);
+      const col = parseInt(td.dataset.col);
+      extendSelection(row, col);
+    }
+  };
+
+  // Mouse up ends drag selection
+  const onMouseUp = () => {
+    if (isDragging && selectionStart && selectionEnd) {
+      const range = getSelectionRange();
+      const cellCount = (range.endRow - range.startRow + 1) * (range.endCol - range.startCol + 1);
+      if (cellCount > 1) {
+        log(`Selected ${getSelectionA1()} (${cellCount} cells)`, 'info');
+      }
+    }
+    isDragging = false;
   };
 
   const onDblClick = (e) => {
@@ -1508,7 +1656,7 @@ function initCellEditHandlers() {
     if (td) {
       const row = parseInt(td.dataset.row);
       const col = parseInt(td.dataset.col);
-      selectCell(row, col);
+      selectCell(row, col, e);
       startEditing(row, col);
     }
   };
@@ -1523,8 +1671,12 @@ function initCellEditHandlers() {
   };
 
   const onMouseMove = (e) => {
+    // Handle drag selection
+    onMouseMoveDrag(e);
+
+    // Handle comment tooltip
     const td = e.target.closest('td[data-row][data-col]');
-    if (td && td.classList.contains('has-comment')) {
+    if (td && td.classList.contains('has-comment') && !isDragging) {
       const row = parseInt(td.dataset.row);
       const col = parseInt(td.dataset.col);
       const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
@@ -1556,30 +1708,31 @@ function initCellEditHandlers() {
   preview.addEventListener('contextmenu', onContextMenu);
   preview.addEventListener('mousemove', onMouseMove);
   preview.addEventListener('mouseleave', onMouseLeave);
+  preview.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('keydown', onKeyDown);
 
 
   const filterBtns = preview.querySelectorAll('.filter-btn');
   filterBtns.forEach(btn => btn.addEventListener('click', onFilterClick));
 
-  window.cellEditListeners = { onClick, onDblClick, onContextMenu, onMouseMove, onMouseLeave, onKeyDown, onFilterClick };
+  window.cellEditListeners = { onClick, onDblClick, onContextMenu, onMouseMove, onMouseLeave, onMouseDown, onMouseUp, onKeyDown, onFilterClick };
 }
 
 function clearAllSelections() {
-  document.querySelectorAll('td.selected, td.col-selected, td.row-selected').forEach(el => {
-    el.classList.remove('selected', 'col-selected', 'row-selected');
+  document.querySelectorAll('td.selected, td.col-selected, td.row-selected, td.cell-selected').forEach(el => {
+    el.classList.remove('selected', 'col-selected', 'row-selected', 'cell-selected');
   });
   document.querySelectorAll('th.col-selected, th.row-selected').forEach(el => {
     el.classList.remove('col-selected', 'row-selected');
   });
   selectedColumn = null;
   selectedRowHeader = null;
+  selectionStart = null;
+  selectionEnd = null;
 }
 
-function selectCell(row, col) {
-  // Clear all selections
-  clearAllSelections();
-
+function selectCell(row, col, event) {
   // If clicking same cell while editing, don't change selection
   if (isEditing && row === selectedRow && col === selectedCol) {
     return;
@@ -1593,14 +1746,43 @@ function selectCell(row, col) {
     }
   }
 
+  // Shift+click extends selection
+  if (event && event.shiftKey && selectionStart) {
+    selectionEnd = { row, col };
+    selectedRow = row;
+    selectedCol = col;
+    updateSelectionHighlight();
+
+    const range = getSelectionRange();
+    const cellCount = (range.endRow - range.startRow + 1) * (range.endCol - range.startCol + 1);
+    log(`Selected ${getSelectionA1()} (${cellCount} cells)`, 'info');
+    return;
+  }
+
+  // Regular click - start new selection
+  clearAllSelections();
+
   selectedRow = row;
   selectedCol = col;
+  selectionStart = { row, col };
+  selectionEnd = { row, col };
 
   // Find and highlight the cell
   const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
   if (td) {
     td.classList.add('selected');
+    td.classList.add('cell-selected');
   }
+}
+
+// Extend selection during drag
+function extendSelection(row, col) {
+  if (!selectionStart) return;
+
+  selectionEnd = { row, col };
+  selectedRow = row;
+  selectedCol = col;
+  updateSelectionHighlight();
 }
 
 function selectColumn(colIndex) {
@@ -2141,3 +2323,242 @@ document.getElementById('btnComments').addEventListener('click', exportCommentsE
 document.getElementById('btnHyperlinks').addEventListener('click', exportHyperlinksExample);
 document.getElementById('btnReExportXlsx').addEventListener('click', reExportXlsx);
 document.getElementById('btnReExportCsv').addEventListener('click', reExportCsv);
+
+// ========================================
+// Sheet Operations Toolbar
+// ========================================
+
+let searchResults = [];
+let searchIndex = -1;
+
+// Show toolbar when file is imported
+function showSheetOperationsToolbar() {
+  document.getElementById('sheetOperationsSection').style.display = 'block';
+}
+
+// Clear search highlights
+function clearSearchHighlights() {
+  document.querySelectorAll('td.search-highlight, td.search-current').forEach(td => {
+    td.classList.remove('search-highlight', 'search-current');
+  });
+}
+
+// Search: Find
+document.getElementById('btnFind').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const searchTerm = document.getElementById('searchInput').value;
+  if (!searchTerm) {
+    log('Enter a search term', 'warning');
+    return;
+  }
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  clearSearchHighlights();
+
+  searchResults = sheet.findAll(searchTerm);
+  searchIndex = searchResults.length > 0 ? 0 : -1;
+
+  log(`Found ${searchResults.length} cells containing "${searchTerm}"`, searchResults.length > 0 ? 'success' : 'info');
+
+  // Highlight all results
+  searchResults.forEach((cell, i) => {
+    const td = document.querySelector(`td[data-row="${cell.row}"][data-col="${cell.col}"]`);
+    if (td) {
+      td.classList.add(i === 0 ? 'search-current' : 'search-highlight');
+    }
+  });
+});
+
+// Search: Find Next
+document.getElementById('btnFindNext').addEventListener('click', () => {
+  if (searchResults.length === 0) return;
+
+  // Remove current highlight
+  const prevCell = searchResults[searchIndex];
+  const prevTd = document.querySelector(`td[data-row="${prevCell.row}"][data-col="${prevCell.col}"]`);
+  if (prevTd) {
+    prevTd.classList.remove('search-current');
+    prevTd.classList.add('search-highlight');
+  }
+
+  // Move to next
+  searchIndex = (searchIndex + 1) % searchResults.length;
+  const cell = searchResults[searchIndex];
+  const td = document.querySelector(`td[data-row="${cell.row}"][data-col="${cell.col}"]`);
+  if (td) {
+    td.classList.remove('search-highlight');
+    td.classList.add('search-current');
+    td.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  log(`Result ${searchIndex + 1} of ${searchResults.length}`, 'info');
+});
+
+// Search: Replace current
+document.getElementById('btnReplace').addEventListener('click', () => {
+  if (!window.currentWorkbook || searchResults.length === 0 || searchIndex < 0) {
+    log('Find something first', 'warning');
+    return;
+  }
+
+  const replacement = document.getElementById('replaceInput').value;
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const cell = searchResults[searchIndex];
+
+  const searchTerm = document.getElementById('searchInput').value;
+  const oldValue = cell.value;
+
+  // Replace in this cell
+  if (typeof oldValue === 'string') {
+    cell.value = oldValue.replace(new RegExp(searchTerm, 'gi'), replacement);
+  } else {
+    cell.value = replacement;
+  }
+
+  log(`Replaced in cell ${columnLetter(cell.col)}${cell.row + 1}`, 'success');
+
+  // Remove from results and refresh
+  searchResults.splice(searchIndex, 1);
+  if (searchIndex >= searchResults.length) searchIndex = 0;
+
+  selectSheet(window.currentSheetIndex);
+
+  // Re-highlight remaining results after render
+  setTimeout(() => {
+    searchResults.forEach((c, i) => {
+      const td = document.querySelector(`td[data-row="${c.row}"][data-col="${c.col}"]`);
+      if (td) td.classList.add(i === searchIndex ? 'search-current' : 'search-highlight');
+    });
+  }, 0);
+});
+
+// Search: Replace All
+document.getElementById('btnReplaceAll').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const searchTerm = document.getElementById('searchInput').value;
+  const replacement = document.getElementById('replaceInput').value;
+
+  if (!searchTerm) {
+    log('Enter a search term', 'warning');
+    return;
+  }
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const replacedCells = sheet.replaceAll(searchTerm, replacement);
+
+  log(`Replaced ${replacedCells.length} occurrences of "${searchTerm}" → "${replacement}"`, 'success');
+
+  clearSearchHighlights();
+  searchResults = [];
+  searchIndex = -1;
+
+  selectSheet(window.currentSheetIndex);
+});
+
+// Clipboard: Copy (uses selected cell or range)
+document.getElementById('btnToolbarCopy').addEventListener('click', () => {
+  if (!window.currentWorkbook || selectedRow === null) {
+    log('Select a cell first', 'warning');
+    return;
+  }
+  copyCell();
+});
+
+// Clipboard: Cut
+document.getElementById('btnToolbarCut').addEventListener('click', () => {
+  if (!window.currentWorkbook || selectedRow === null) {
+    log('Select a cell first', 'warning');
+    return;
+  }
+  cutCell();
+});
+
+// Clipboard: Paste
+document.getElementById('btnToolbarPaste').addEventListener('click', () => {
+  if (!window.currentWorkbook || selectedRow === null) {
+    log('Select a cell first', 'warning');
+    return;
+  }
+  pasteCell();
+});
+
+// Row: Insert
+document.getElementById('btnInsertRow').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const rowIndex = selectedRow !== null ? selectedRow : 0;
+
+  console.log('Before insert - dimensions:', sheet.dimensions);
+  sheet.insertRow(rowIndex, 1);
+  console.log('After insert - dimensions:', sheet.dimensions);
+
+  log(`Inserted row at index ${rowIndex}`, 'success');
+
+  // Force full re-render
+  selectSheet(window.currentSheetIndex);
+});
+
+// Row: Delete
+document.getElementById('btnDeleteRow').addEventListener('click', () => {
+  if (!window.currentWorkbook || selectedRow === null) {
+    log('Select a row first (click row number)', 'warning');
+    return;
+  }
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  sheet.deleteRow(selectedRow, 1);
+  log(`Deleted row ${selectedRow + 1}`, 'success');
+  selectedRow = null;
+  selectSheet(window.currentSheetIndex);
+});
+
+// Column: Insert
+document.getElementById('btnInsertCol').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const colIndex = selectedCol !== null ? selectedCol : 0;
+
+  sheet.insertColumn(colIndex, 1);
+  log(`Inserted column at ${columnLetter(colIndex)}`, 'success');
+  selectSheet(window.currentSheetIndex);
+});
+
+// Column: Delete
+document.getElementById('btnDeleteCol').addEventListener('click', () => {
+  if (!window.currentWorkbook || selectedCol === null) {
+    log('Select a column first (click column header)', 'warning');
+    return;
+  }
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  sheet.deleteColumn(selectedCol, 1);
+  log(`Deleted column ${columnLetter(selectedCol)}`, 'success');
+  selectedCol = null;
+  selectSheet(window.currentSheetIndex);
+});
+
+// Data: Export to Array
+document.getElementById('btnExportArray').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const data = sheet.toArray();
+
+  console.log('📊 sheet.toArray() result:', data);
+  log(`Exported ${data.length} rows as array → see browser console (F12)`, 'success');
+});
+
+// Data: Export to Objects
+document.getElementById('btnExportObjects').addEventListener('click', () => {
+  if (!window.currentWorkbook) return;
+
+  const sheet = window.currentWorkbook.sheets[window.currentSheetIndex];
+  const data = sheet.toObjects();
+
+  console.log('📋 sheet.toObjects() result:', data);
+  log(`Exported ${data.length} objects → see browser console (F12)`, 'success');
+});

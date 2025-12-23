@@ -49,6 +49,55 @@
       </div>
     </div>
 
+    <!-- Sheet Operations Toolbar (shown when file is imported) -->
+    <div class="section" id="sheetOperationsSection" style="display: none;">
+      <div class="section-header">
+        <div class="section-icon">⚙️</div>
+        <h2>Sheet Operations</h2>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="toolbar-row">
+        <div class="search-toolbar">
+          <input type="text" id="searchInput" placeholder="Search..." class="toolbar-input">
+          <button class="toolbar-btn" id="btnFind" title="Find">🔍 Find</button>
+          <button class="toolbar-btn" id="btnFindNext" title="Find Next">Next</button>
+          <input type="text" id="replaceInput" placeholder="Replace with..." class="toolbar-input">
+          <button class="toolbar-btn" id="btnReplace" title="Replace">Replace</button>
+          <button class="toolbar-btn" id="btnReplaceAll" title="Replace All">Replace All</button>
+        </div>
+      </div>
+
+      <!-- Operations Toolbar -->
+      <div class="toolbar-row">
+        <div class="toolbar-group">
+          <span class="toolbar-label">Clipboard:</span>
+          <button class="toolbar-btn" id="btnToolbarCopy" title="Copy selection (Ctrl+C)">📋 Copy</button>
+          <button class="toolbar-btn" id="btnToolbarCut" title="Cut selection (Ctrl+X)">✂️ Cut</button>
+          <button class="toolbar-btn" id="btnToolbarPaste" title="Paste (Ctrl+V)">📄 Paste</button>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Rows:</span>
+          <button class="toolbar-btn" id="btnInsertRow" title="Insert row above selection">+ Insert</button>
+          <button class="toolbar-btn" id="btnDeleteRow" title="Delete selected row">− Delete</button>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Columns:</span>
+          <button class="toolbar-btn" id="btnInsertCol" title="Insert column before selection">+ Insert</button>
+          <button class="toolbar-btn" id="btnDeleteCol" title="Delete selected column">− Delete</button>
+        </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label">Data:</span>
+          <button class="toolbar-btn" id="btnExportArray" title="Export to console as array">📊 toArray()</button>
+          <button class="toolbar-btn" id="btnExportObjects" title="Export to console as objects">📋 toObjects()</button>
+        </div>
+      </div>
+
+      <p class="toolbar-hint">
+        💡 <strong>Tip:</strong> Select cells by clicking, select rows/columns by clicking headers. Use Ctrl+C/X/V for clipboard.
+      </p>
+    </div>
+
     <!-- Import Section -->
     <div class="section">
       <div class="section-header">
